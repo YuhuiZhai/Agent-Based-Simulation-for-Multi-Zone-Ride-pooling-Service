@@ -1,15 +1,39 @@
 import heapq as hq
+import random
+from node import Node
+from passenger import Passenger
+from city import City
+
 class EventQueue:
-    def __init__(self):
+    def __init__(self, city:City, T:float, lmd:float):
         # event queue
         # size of queue
         # current time 
         self.queue = []
         self.size = 0
         self.clock = 0
+        self.T = T
+        self.lmd = lmd
+        
+        t = 0
+        temp_passenger_id = 0
+        while t < T:
+            dt = random.expovariate(lmd)
+            t += dt
+            temp_passenger = Passenger(t, temp_passenger_id, city)
+            temp_passenger_id += 1
+            event = Node(temp_passenger.t_start, 'appear', None, temp_passenger)
+            self.insert(event)
+    
+    def empty(self):
+        return len(self.queue) == 0
 
     # add an event to the queue
     # type of event is class Node
+    def head(self):
+        head_time, head = self.queue[0]
+        return head_time, head
+
     def insert(self, event):
         self.size += 1
         hq.heappush(self.queue, (event.time, event))
@@ -27,8 +51,10 @@ class EventQueue:
     def delete(self, event):
         if ((event.time, event) in self.queue):
             self.queue.remove((event.time, event))
+        self.size -= 1
         hq.heapify(self.queue)
 
+    
     def simulate(self):
         if len(self.queue) == 0:
             return None, -1
