@@ -37,14 +37,19 @@ city = City()
 # print("read file completed")
 
 # simple assignment part
-simulation1 = Simulation(city, fleet_size=105, T=10, lmd=400)
-simulation1.simple_serve(res=1/60/60)
-simulation1.export("simple")
+simulation1 = Simulation(city, fleet_size=10, T=3, lmd=50)
+# simulation1.simple_serve(res=1/60/60)
+# simulation1.export("simple")
 
 # batch assignment part
-simulation1.batch_serve(res=1/60/60, dt=1/60/20)
-simulation1.export("batch")
+simulation1.batch_serve(res=1/60/60, dt=1/10)
+# simulation1.export("batch")
+
+# share assignment
+# simulation1.sharing_serve(res=1/60/60, detour_percentage=5)
 
 # animation part
-# simulation1.make_animation(compression=10, fps=15)
+# simulation1.export("share")
+# simulation1.export()
+simulation1.make_animation(compression=20, fps=15)
 

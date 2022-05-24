@@ -20,13 +20,12 @@ class Simulation:
         self.s = []
         self.i = []
         self.p = []
-        # fleet info at each time t
         self.fleet_info = []
-
+        self.passenger_info = []
     
     def make_animation(self, compression = 100, fps=15):
         print("animation plotting")
-        animation = Animation(self.city, self.fleet_info, self.events)
+        animation = Animation(self.city, self.fleet_info, self.passenger_info)
         animation.plot(compression, fps)
 
     def reset(self):
@@ -37,6 +36,8 @@ class Simulation:
         self.s = []
         self.i = []
         self.p = []
+        self.fleet_info = []
+        self.passenger_info = []
 
     def simple_serve(self, res:float):
         self.reset()
@@ -49,6 +50,7 @@ class Simulation:
             self.i.append(self.fleet.idle_num)
             
             self.fleet_info.append(self.fleet.sketch_helper())
+            self.passenger_info.append(self.events.sketch_helper())
 
             while (not self.events.empty() and head_time < t):
                 prev += 1
@@ -56,8 +58,31 @@ class Simulation:
                 self.events.dequeue()
                 head_time, head = self.events.head()
             self.fleet.move(res)
+            self.events.move(res)
             self.p.append(prev)
         return 
+
+    def sharing_serve(self, res:float, detour_percentage:float):
+        self.reset()
+        prev = 0
+        self.timeline = np.arange(0, self.T, res)
+        head_time, head = self.events.head()
+        for t in tqdm(self.timeline, desc="sharing_serve loading"):
+            self.a.append(self.fleet.assigned_num)
+            self.s.append(self.fleet.inservice_num)
+            self.i.append(self.fleet.idle_num)
+
+            self.fleet_info.append(self.fleet.sketch_helper())
+            self.passenger_info.append(self.events.sketch_helper())
+
+            while (not self.events.empty() and head_time < t):
+                self.fleet.sharing_serve(head.passenger, detour_percentage)
+                self.events.dequeue()
+                head_time, head = self.events.head()
+            self.fleet.move(res)
+            self.events.move(res)
+            self.p.append(prev)
+        return
 
     def batch_serve(self, res:float, dt:float):
         self.reset()
@@ -67,12 +92,13 @@ class Simulation:
         batch_idx = 0
         prev = 0
         
-        for t in tqdm(self.timeline, desc="batch_matching loading"):
+        for t in tqdm(self.timeline, desc="batch_serve loading"):
             self.a.append(self.fleet.assigned_num)
             self.s.append(self.fleet.inservice_num)
             self.i.append(self.fleet.idle_num)
             
             self.fleet_info.append(self.fleet.sketch_helper())
+            self.passenger_info.append(self.events.sketch_helper())
 
             # when it is batching time, starts serving
             if (batch_idx >= len(batch_timeline)):
@@ -91,10 +117,11 @@ class Simulation:
                     self.fleet.batch_serve(passengers)
                 batch_idx += 1
             self.fleet.move(res)
+            self.events.move(res)
             self.p.append(prev)     
         return   
 
-
+    # def sharing_serve(self, res:float, detour_dist=0, detour_percent=0):
 
     def export(self, name=""):
         dist_a, dist_s, ta, ts, freq, unserved = self.fleet.info()

@@ -6,7 +6,7 @@ from tqdm import tqdm
 def assign_type():
         table = {"1":"Euclidean", "2":"Manhattan", "3":"real-world", 
                 "Euclidean":"Euclidean", "Manhattan":"Manhattan", "real-world":"real-world"}
-        print("Please enter the type of city? \n [1: Euclidean, 2:Mahattan, 3:real-world]")
+        print("Please enter the type of city? \n [1: Euclidean, 2:Manhattan, 3:real-world]")
         answer = input()
         if answer in table.keys():
             return table[answer]
