@@ -64,14 +64,9 @@ class Vehicle:
         self.passenger[0].t_s = self.clock
 
     def release(self):
-        if len(self.passenger) == 1: 
-            self.path1.pop(0)
-            self.path2.pop(0)
+        if self.path2[0][1] == 2:
             self.passenger.pop(0)
-        else:
-            if self.path2[0][1] == 2:
-                self.passenger.pop(0)
-            self.path2.pop(0)
+        self.path2.pop(0)
         self.load -= 1
             
     def assign(self, passenger:Passenger):
@@ -85,7 +80,8 @@ class Vehicle:
         self.status = "in_service"
 
     def idle(self):
-        self.release()
+        self.passenger.pop(0)
+        self.load -= 1
         self.status = "idle"
         
     def location(self):

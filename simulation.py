@@ -124,6 +124,7 @@ class Simulation:
     # def sharing_serve(self, res:float, detour_dist=0, detour_percent=0):
 
     def export(self, name=""):
+        name_ = name
         dist_a, dist_s, ta, ts, freq, unserved = self.fleet.info()
         veh_num = {
             'time': self.timeline, 
@@ -142,8 +143,10 @@ class Simulation:
         }
         output_1 = pd.DataFrame(veh_num)
         output_2 = pd.DataFrame(fleet_info)
-        output_1.to_csv(name + '_veh_num_M_' + str(self.fleet_size) + '_lambda_' + str(self.lmd) + '.csv')
-        output_2.to_csv(name + '_fleet_info_M_' + str(self.fleet_size) + '_lambda_' + str(self.lmd) + '.csv')
+        if (name_ != ""):
+            name_ += "_"
+        output_1.to_csv(name_ + 'veh_num_M_' + str(self.fleet_size) + '_lambda_' + str(self.lmd) + '.csv')
+        output_2.to_csv(name_ + 'fleet_info_M_' + str(self.fleet_size) + '_lambda_' + str(self.lmd) + '.csv')
         print("unserved number: ", unserved)
         return 
 

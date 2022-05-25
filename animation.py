@@ -38,12 +38,13 @@ class Animation:
         plt.xlabel("longitude")
         plt.ylabel("latitude")
         if self.city.type_name == "Euclidean" or self.city.type_name == "Manhattan":  
-            plt.xlim(0, 0.09)
-            plt.ylim(0, 0.09)
-            ax.text(0.07, 0.01, "in service", color = 'r',  fontsize = 10)
-            ax.text(0.07, 0.01-0.003, "assigned", color = 'y', fontsize = 10)
-            ax.text(0.07, 0.01-0.006, "idle", color = 'g', fontsize = 10)
-            ax.text(0.07, 0.01-0.009, "passenger", color = 'b', fontsize = 10)
+            plt.xlim(0, 0.06)
+            plt.ylim(0, 0.06)
+
+            ax.text(0.05, 0.01, "in service", color = 'r',  fontsize = 10)
+            ax.text(0.05, 0.01-0.003, "assigned", color = 'y', fontsize = 10)
+            ax.text(0.05, 0.01-0.006, "idle", color = 'g', fontsize = 10)
+            ax.text(0.05, 0.01-0.009, "passenger", color = 'b', fontsize = 10)
         
         if self.city.type_name == "real-world":
             ax.text(-88.1,40.3, "in service", color = 'r',  fontsize = 10)

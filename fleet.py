@@ -133,19 +133,18 @@ class Fleet:
         inf = 4000
         # bi direction map between nparray idx and veh
         valid_vehs = {}
-        temp1 = 0
+        idx1 = 0
         for veh_id in self.vehicles:
             veh = self.vehicles[veh_id]
             if veh.status == "idle":
-                valid_vehs[temp1] = veh
-                valid_vehs[veh] = temp1
-                temp1 += 1
+                valid_vehs[idx1] = veh
+                valid_vehs[veh] = idx1
+                idx1 += 1
         # initialize a objective matrix
-        obj_table = 4000 * np.ones((len(passengers), int(len(valid_vehs)/2)))
+        weight_table = inf * np.ones((len(passengers), int(len(valid_vehs)/2)))
         # bi direction map between nparray idx and pax
         valid_paxs = {}
-        temp2 = 0
-        for pax in passengers:
+        for idx2, pax in enumerate(passengers):
             for veh_id in self.vehicles:
                 veh = self.vehicles[veh_id]
                 if veh.status != "idle":
@@ -154,21 +153,25 @@ class Fleet:
                 # if there is no connecting path, the weight is still inf
                 if dist == -1:
                     continue
-                obj_table[temp2, valid_vehs[veh]] = dist          
-            valid_paxs[temp2] = pax
-            valid_paxs[pax] = temp2
-            temp2 += 1
-        row, col = linear_sum_assignment(obj_table)
+                weight_table[idx2, valid_vehs[veh]] = dist          
+            valid_paxs[idx2] = pax
+            valid_paxs[pax] = idx2
+        row, col = linear_sum_assignment(weight_table)
         served_num = 0
+        decision_table = np.zeros(len(passengers))
         for i in range(len(row)):
             row_idx = row[i]
             col_idx = col[i]
             opt_pax = valid_paxs[row_idx]
             opt_veh = valid_vehs[col_idx]
-            if (obj_table[row_idx, col_idx] == 4000):
+            if (weight_table[row_idx, col_idx] == inf):
                 continue
             opt_veh.assign(opt_pax)
             served_num += 1
+            decision_table[valid_paxs[opt_pax]] = 1
+        for i, pax in enumerate(passengers):
+            if not decision_table[i]:
+                pax.status = "unserved"
         self.unserved_num += len(passengers) - served_num
         return
       
