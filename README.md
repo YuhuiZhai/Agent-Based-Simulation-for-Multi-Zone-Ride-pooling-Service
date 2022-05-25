@@ -23,7 +23,7 @@
     To create a `real-world` city, here is a simple example of loading graph: 
 
         # input city information
-        city = City()
+        city = City("real-world")
         input_file_name1 = "node.xls"
         input_file_name2 = "link.xls"
 
