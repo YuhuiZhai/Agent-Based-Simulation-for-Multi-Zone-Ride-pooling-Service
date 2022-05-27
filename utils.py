@@ -1,33 +1,12 @@
 from asyncio.windows_events import NULL
 import math
 import random 
-def distance(node_1, node_2):
-    lo1_ = node_1.x
-    la1_ = node_1.y
-    lo2_ = node_2.x
-    la2_ = node_2.y
-    return distance_helper(lo1_, la1_, lo2_, la2_)
-
 def onplotdist(node_1, node_2):
         lo1 = node_1.x
         la1 = node_1.y
         lo2 = node_2.x
         la2 = node_2.y
-        return ((lo1 - lo2)**2 + (la1 - la2)**2)**(1/2)
-
-def distance_helper(lo1, la1, lo2, la2):
-    # approximate radius of earth in km
-    R = 6371
-    lat1 = math.radians(la1)
-    lon1 = math.radians(lo1)
-    lat2 = math.radians(la2)
-    lon2 = math.radians(lo2)
-    dlon = lon2 - lon1
-    dlat = lat2 - lat1
-    a = math.sin(dlat / 2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2)**2
-    c = 2 * math.asin(math.sqrt(a))
-    dist = R * c
-    return dist
+        return 60 * ((lo1 - lo2)**2 + (la1 - la2)**2)**(1/2)
 
 def generate_location(city):
     """
@@ -36,8 +15,8 @@ def generate_location(city):
     `return`: (x, y) or (city link, distance from link's node_o)
     """
     if city.type_name == "Euclidean" or city.type_name == "Manhattan":  
-        x = 0.06*random.random()
-        y = 0.06*random.random()
+        x = city.origin[0] + city.length*random.random()
+        y = city.origin[1] + city.length*random.random()
         return x, y 
 
     if city.type_name == "real-world":
@@ -46,39 +25,21 @@ def generate_location(city):
         l = random.random() * city.links[idx].length / 2
         return city.links[idx], l
 
-
-def dist(city, o_link, o_len, d_link, d_len):
-    """
-    Get the distance from one link to the other link
-    `o_link`: CityLink, starting link
-    `o_len`: distance from starting link
-    `d_link`: CityLink, end link
-    `d_len`: distance from ending link  
-    `return`: distance 
-    """
-    dist, path = city.dijkstra(o_link.origin.id, d_link.origin.id)
-    if dist == -1:
+def optimal_M(city, arrival_rate):
+    if city.type_name == "real-world":
+        print("real-world fleet size must be defined")
         return -1
-    dist = dist - o_len + d_len  
-    return dist
+    k = 0.5
+    l = 2**(1/2)*2/3*city.length
+    if city.type_name == "Manhattan":
+        k = 0.63
+        l = 2/3*city.length
+    R = city.length**2
+    v = city.max_v
+    lmdR = arrival_rate
+    opt_Ta = (2*k**2*R/v**2/lmdR)**(1/3)
+    opt_M = k**2*R/(v*opt_Ta)**2 + lmdR*opt_Ta + lmdR*l/v
+    return opt_M
 
 
-def get_path(city, o_link, o_len, d_link, d_len):
-    """
-    Get path
-    `city`: class City 
-    `o_link`: citylink
-    `o_len`: distance from o_link's o_node 
-    `d_link`: citylink 
-    `d_len`: distance from d_link's o_node 
-    `return`: path[ ], total path length 
-    """
-    if (o_link.id == d_link.id):
-        print("edge case")
-        return -1, NULL
-
-    ret_dist = city.dj_path[o_link.origin.id, d_link.origin.id][0] - o_len + d_len
-    ret_path = city.dj_path[o_link.origin.id, d_link.origin.id][1]
-
-    return ret_path, ret_dist
-
+    

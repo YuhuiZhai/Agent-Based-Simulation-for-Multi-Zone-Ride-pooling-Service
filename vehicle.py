@@ -14,14 +14,16 @@ class Vehicle:
         if self.city.type_name == "real-world":
             self.link, self.len = utils.generate_location(city)
         # around 30 mph
-        self.speed = 0.3
+        self.speed = self.city.max_v
         self.load = 0
         self.status = "idle"
         self.passenger = []
+        # random position when idling
+        self.idle_position = None
         # ordered list of passed nodes [..., cityNode1, cityNode2, cityNode3, ...]
         self.path1 = [] 
         self.path2 = []  
-        # determine whether the pre-assigned route is finished
+        # determine whether the pre-assigned route is finished "real-world"
         self.start1 = True
         # distance of assigned
         self.dist_a = 0
@@ -136,8 +138,8 @@ class Vehicle:
     # move from origin (x, y) to destination (x, y) using Manhattan space
     def move_Manhattan(self, dt:float, dxy:list):
             dx, dy = dxy[0], dxy[1]
-            # xmove = random.randint(0, 1)
-            xmove = 1
+            xmove = random.randint(0, 1)
+            # xmove = 1
             ymove = 1 - xmove
             if (self.x == dx):
                 xmove, ymove = 0, 1
@@ -188,6 +190,20 @@ class Vehicle:
                     self.len = 0
         return False
 
+    def idle_pos(self):
+        x, y = 0, 0
+        x = self.even_space*round(self.x / self.even_space)
+        y = self.even_space*round(self.y / self.even_space)
+        if x == 0:
+            x += self.even_space
+        elif x == self.city.length:
+            x -= self.even_space
+        if y == 0:
+            y += self.even_space
+        elif y == self.city.length:
+            y -= self.even_space
+        return (x, y)
+
     # move along the path and update the location of vehicle
     def move(self, dt):
         self.clock += dt
@@ -208,6 +224,8 @@ class Vehicle:
                 reached = self.move_Euclidean(dt, self.path2[0][0])
                 if (reached):
                     self.idle()
+            # elif self.status == "idle":
+            #     self.move_Euclidean(dt, (self.city.length/2, self.city.length/2))
 
         elif self.city.type_name == "Manhattan":  
             if self.status == "assigned":
@@ -223,6 +241,8 @@ class Vehicle:
                         if self.path2[0][1] == 1:
                             self.pick_up()
                         self.release()
+            elif self.status == "idle":
+                reached = self.move_Manhattan(dt, self.idle_position)
 
         elif self.city.type_name == "real-world":
             # determine the movement of first path

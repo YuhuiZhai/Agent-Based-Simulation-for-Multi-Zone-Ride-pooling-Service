@@ -1,6 +1,6 @@
-import numpy as np
-def sign(num):
-    return (num > 0) - (num < 0)
-
-obj_table = 4000 * np.ones((2, 3))
-print(sum(obj_table[0]))
+import utils
+from city import City
+a = 1
+b = 2
+a, b = a +2, b+2
+print(a, b)

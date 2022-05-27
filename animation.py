@@ -35,22 +35,24 @@ class Animation:
             return ln1, ln2, ln3, ln4,
 
         animation = FuncAnimation(fig, update, blit=True, frames = range(0, len(self.fleet_info), compression))
-        plt.xlabel("longitude")
-        plt.ylabel("latitude")
-        if self.city.type_name == "Euclidean" or self.city.type_name == "Manhattan":  
-            plt.xlim(0, 0.06)
-            plt.ylim(0, 0.06)
-
-            ax.text(0.05, 0.01, "in service", color = 'r',  fontsize = 10)
-            ax.text(0.05, 0.01-0.003, "assigned", color = 'y', fontsize = 10)
-            ax.text(0.05, 0.01-0.006, "idle", color = 'g', fontsize = 10)
-            ax.text(0.05, 0.01-0.009, "passenger", color = 'b', fontsize = 10)
         
+        if self.city.type_name == "Euclidean" or self.city.type_name == "Manhattan":  
+            plt.xlim(0, 0.06*60)
+            plt.ylim(0, 0.06*60)
+
+            ax.text(0.05*60, 0.01*60, "in service", color = 'r',  fontsize = 10)
+            ax.text(0.05*60, (0.01-0.003)*60, "assigned", color = 'y', fontsize = 10)
+            ax.text(0.05*60, (0.01-0.006)*60, "idle", color = 'g', fontsize = 10)
+            ax.text(0.05*60, (0.01-0.009)*60, "passenger", color = 'b', fontsize = 10)
+            plt.xlabel("x (mile)")
+            plt.ylabel("y (mile)")
         if self.city.type_name == "real-world":
             ax.text(-88.1,40.3, "in service", color = 'r',  fontsize = 10)
             ax.text(-88.1,40.3-0.002, "assigned", color = 'y', fontsize = 10)
             ax.text(-88.1,40.3-0.004, "idle", color = 'g', fontsize = 10)
             ax.text(-88.1,40.3-0.006, "passenger", color = 'b', fontsize = 10)
+            plt.xlabel("longitude")
+            plt.ylabel("latitude")      
 
         writergif = PillowWriter(fps) 
         animation.save("tax.gif", writer=writergif)

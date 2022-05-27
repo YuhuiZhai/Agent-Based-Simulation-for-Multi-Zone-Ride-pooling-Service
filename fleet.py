@@ -3,7 +3,6 @@ from vehicle import Vehicle
 import matplotlib.pyplot as plt
 import math 
 import numpy as np
-import utils 
 from tqdm import tqdm 
 from city import City
 from passenger import Passenger
@@ -21,6 +20,42 @@ class Fleet:
         self.unserved_num = 0
         for i in range(n):
             self.vehicles[i] = Vehicle(i, city)
+    
+    def reallocation(self):
+        if (self.city.type_name == "real-world"):
+            return
+        valid_vehs = {}
+        idx1 = 0
+        for veh_id in self.vehicles:
+            veh = self.vehicles[veh_id]
+            if veh.status == "idle":
+                valid_vehs[idx1] = veh
+                valid_vehs[veh] = idx1
+                idx1 += 1
+        if idx1 <= 1:
+            return 
+        idle_pos = []
+        num = int((self.idle_num)**(0.5))
+        if (num**2 != self.idle_num):
+            num += 1
+        even_space = self.city.length / (num-1)
+        for i in range(int(num**2)):
+            idle_pos.append((even_space*(i%num), even_space*int(i/num)))
+        weight_table = np.ones((int(len(valid_vehs)/2), len(idle_pos)))
+        for i in range(idx1):
+            veh = valid_vehs[i]
+            for j in range(len(idle_pos)):
+                x, y = idle_pos[j]
+                if (self.city.type_name == "Manhattan"):
+                    weight_table[i, j] = abs(veh.x - x) + abs(veh.y - y)
+                elif (self.city.type_name == "Euclidean"):
+                    weight_table[i, j] = ((veh.x - x)**2 + (veh.y - y)**2)**(0.5)
+        row, col = linear_sum_assignment(weight_table)
+        for i in range(len(row)):
+            row_idx, col_idx = row[i], col[i]
+            opt_veh = valid_vehs[row_idx]
+            opt_veh.idle_position = idle_pos[col_idx]
+        return
 
     # dist_type is [1: assigned distance, 2: service distance, 3:total distance]
     def dist(self, vehicle:Vehicle, passenger:Passenger, dist_type:int):
@@ -129,7 +164,6 @@ class Fleet:
 
     # batching assignment to serve a group of passenger 
     def batch_serve(self, passengers:list):
-        # define inf as 4000 mile, which is the radius of earth (scipy.optimize has bug with inf)
         inf = 4000
         # bi direction map between nparray idx and veh
         valid_vehs = {}
@@ -137,10 +171,8 @@ class Fleet:
         for veh_id in self.vehicles:
             veh = self.vehicles[veh_id]
             if veh.status == "idle":
-                valid_vehs[idx1] = veh
-                valid_vehs[veh] = idx1
+                valid_vehs[idx1], valid_vehs[veh] = veh, idx1
                 idx1 += 1
-        # initialize a objective matrix
         weight_table = inf * np.ones((len(passengers), int(len(valid_vehs)/2)))
         # bi direction map between nparray idx and pax
         valid_paxs = {}
@@ -154,16 +186,13 @@ class Fleet:
                 if dist == -1:
                     continue
                 weight_table[idx2, valid_vehs[veh]] = dist          
-            valid_paxs[idx2] = pax
-            valid_paxs[pax] = idx2
+            valid_paxs[idx2], valid_paxs[pax] = pax, idx2
         row, col = linear_sum_assignment(weight_table)
         served_num = 0
         decision_table = np.zeros(len(passengers))
         for i in range(len(row)):
-            row_idx = row[i]
-            col_idx = col[i]
-            opt_pax = valid_paxs[row_idx]
-            opt_veh = valid_vehs[col_idx]
+            row_idx, col_idx = row[i], col[i]
+            opt_pax, opt_veh = valid_paxs[row_idx], valid_vehs[col_idx]
             if (weight_table[row_idx, col_idx] == inf):
                 continue
             opt_veh.assign(opt_pax)
@@ -194,10 +223,8 @@ class Fleet:
 
     # function to return total driving distance, assigned time, inservice time
     def info(self):
-        dist_a = []
-        dist_s = []
-        ta = []
-        ts = []
+        dist_a, dist_s = [], []
+        ta, ts = [], []
         freq = []
         for v_idx in self.vehicles:
             veh = self.vehicles[v_idx]
@@ -210,17 +237,13 @@ class Fleet:
 
     # function to serve the passenger at time t
     def move(self, dt):
-        count1 = 0
-        count2 = 0
-        count3 = 0
+        count1, count2, count3 = 0, 0, 0
         for id in self.vehicles:
             self.vehicles[id].move(dt)
             if self.vehicles[id].status == 'assigned':
                 count1 += 1
-            
             if self.vehicles[id].status == 'in_service':
                 count2 += 1
-            
             if self.vehicles[id].status == 'idle':
                 count3 += 1
         self.clock += dt

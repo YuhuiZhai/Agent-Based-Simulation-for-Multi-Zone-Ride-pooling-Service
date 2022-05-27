@@ -47,35 +47,34 @@ class CityLink:
         self.dy = self.destination.y
         self.length = utils.onplotdist(self.origin, self.destination)
 
+    
 class City:
-    def __init__(self, type_name=""):
+    def __init__(self, type_name="", length=3.6, max_v=18, origin=(0, 0)):
         # 3 types: Eucledean, Manhatten, real-world
         self.type_name = type_name 
-        self.num_node = 0
-        self.num_link = 0
-        # dictionary of nodes
-        # key is id, value is citynode
-        self.nodes = {}
-        # dictionary of links
-        # key is id, value is citylink
-        self.links = {}
-        # key is (node1_id, node2_id), value is citylink_id
-        self.map = {}
-        # dictionary of shortest path
-        # key is O,D, value is distance and path []
-        # dj_path[o, d] = dist, [o, node1, node2, ..., d]
-        self.dj_path = {}
-        # neighbour
-        # key is node, value is list of neighbour node
-        self.neigh = {}
+        self.length = length
+        self.max_v = max_v
+        self.origin = origin
         if (self.type_name == ""):
             type = assign_type()
             while (type == None):
                 type = assign_type()
             self.type_name = type
+        if (self.type_name == "real-world"):
+            self.num_node, self.num_link = 0, 0
+            # key is id, value is citynode
+            self.nodes = {}
+            # key is id, value is citylink
+            self.links = {}
+            # key is (node1_id, node2_id), value is citylink_id
+            self.map = {}
+            # key is node, value is list of neighbour node
+            self.neigh = {}
+    
+    def set_origin(self, new_origin:tuple):
+        self.origin = new_origin
 
     def add_node(self, new_node:CityNode):
-        # add new citynode by its id 
         self.num_node += 1
         self.nodes[new_node.id] = new_node
 
@@ -100,12 +99,6 @@ class City:
                 plt.plot([link.ox, link.dx], [link.oy, link.dy], color = 'k') 
         return 
 
-    def sketchpath(self):
-        dist, path = self.dj_path[0, 100]
-        for i in range(1, len(path)):
-            link = self.links[self.map[path[i-1], path[i]]]
-            plt.plot([link.ox, link.dx], [link.oy, link.dy], color = 'r') 
-
     def dijkstra(self, start_id:int, end_id:int):
         if (start_id == end_id):
             return 0, [start_id]
@@ -121,17 +114,14 @@ class City:
             path[i] = -1
         # push with a tuple (weight, node_id, previous node_id)
         hq.heappush(queue, (0, start_id, -1))
-        
         while len(queue) != 0:
             weight, curr, prev = hq.heappop(queue)
             if curr not in vis:
                 vis.add(curr)
             else:
                 continue
-            
             dist[curr] = weight
             path[curr] = prev
-
             neigh = self.neigh[curr]
             node_1 = self.nodes[curr]
             for n in neigh:
@@ -141,7 +131,6 @@ class City:
                 hq.heappush(queue, (weight + utils.onplotdist(node_1, node_2), n, curr))
         if path[end_id] == -1:
             return -1, [] 
-        
         dj_path = []
         curr_id = end_id
         while curr_id != -1:

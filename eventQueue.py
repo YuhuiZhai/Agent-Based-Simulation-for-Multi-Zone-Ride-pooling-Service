@@ -1,8 +1,15 @@
 import heapq as hq
 import random
-from event import Event
+from vehicle import Vehicle
 from passenger import Passenger
 from city import City
+
+class Event:
+    def __init__(self, time, event_type, vehicle:Vehicle, passenger:Passenger):
+        self.time = time
+        self.type = event_type
+        self.vehicle = vehicle
+        self.passenger = passenger
 
 class EventQueue:
     def __init__(self, city:City, T:float, lmd:float):
@@ -14,7 +21,6 @@ class EventQueue:
         self.clock = 0
         self.T = T
         self.lmd = lmd
-        
         t = 0
         temp_passenger_id = 0
         while t < T:
@@ -59,7 +65,6 @@ class EventQueue:
         self.size += 1
         hq.heappush(self.queue, (event.time, event))
         self.record[event.passenger.id] = event.passenger
-        
 
     # pop the event with the minimum time 
     # return the popped time and event
