@@ -9,56 +9,69 @@ from scipy.optimize import linear_sum_assignment
 
 class Fleet:
     def __init__(self, n:int, city:City):
+        self.fleet_size, self.city = n, city
+        self.id = city.origin
         self.clock = 0
-        self.fleet_size = n
         self.vehicles = {}
-        self.city = city
-        self.assigned_num, self.inservice_num, self.idle_num = 0, 0, n        
+        self.assigned_vehs, self.in_service_vehs, self.idle_vehs = set(), set(), set()
+        self.vehs_group = [self.assigned_vehs, self.in_service_vehs, self.idle_vehs]
+        self.assigned_num, self.inservice_num, self.idle_num = 0, 0, n 
         self.unserved_num, self.served_num = 0, 0
         for i in range(n):
-            self.vehicles[(self.city.origin, i)] = Vehicle((self.city.origin, i), city)
+            veh = Vehicle((self.city.origin, i), city)
+            self.vehicles[(self.city.origin, i)] = veh
+            self.idle_vehs.add(veh)
     
-    def add(self, vehicle:Vehicle):
+    # change veh's status from status1 to status2 
+    def changeVehStatus(self, status_request:tuple):
+        veh_id, status1, status2 = status_request
+        if status1 == status2:
+            return
+        veh = self.vehicles[veh_id]
+        set_out, set_in = self.vehs_group[status1], self.vehs_group[status2]
+        set_out.remove(veh)
+        set_in.add(veh)
+        return 
+
+    # add idle vehicle from other fleet
+    def add_idle(self, vehicle:Vehicle):
         self.vehicles[vehicle.id] = vehicle
+        self.idle_vehs.add(vehicle)
         self.fleet_size += 1
         return 
 
-    def release(self, vehicle:Vehicle):
+    # release idle vehicle to other fleet
+    def release_idle(self, vehicle:Vehicle):
         self.vehicles.pop(vehicle.id)
+        self.idle_vehs.remove(vehicle)
         self.fleet_size -= 1
         return 
 
     def global_reallocation(self, fleet, num):
         sent_vehs = set()
-        for veh_id in self.vehicles:
+        for idle_veh in self.idle_vehs:
             if len(sent_vehs) == num:
                 break
-            veh = self.vehicles[veh_id]
-            if veh.status != "idle":
-                continue
-            sent_vehs.add(veh)
+            sent_vehs.add(idle_veh)
+
         for sent_veh in sent_vehs:
             sent_veh.changeCity(fleet.city)
-            self.release(sent_veh)
-            fleet.add(sent_veh)
+            self.release_idle(sent_veh)
+            fleet.add_idle(sent_veh)
 
     def local_reallocation(self, decision=True):
         if (self.city.type_name == "real-world"):
             return
         if not decision:
-            for veh_id in self.vehicles:
-                veh = self.vehicles[veh_id]
-                if veh.status == "idle":
-                    veh.idle_postion = utils.generate_location()
+            for idle_veh in self.idle_vehs:
+                idle_veh.idle_postion = utils.generate_location()
             return 
         valid_vehs = {}
         idx1 = 0
-        for veh_id in self.vehicles:
-            veh = self.vehicles[veh_id]
-            if veh.status == "idle":
-                valid_vehs[idx1] = veh
-                valid_vehs[veh] = idx1
-                idx1 += 1
+        for idle_veh in self.idle_vehs:
+            valid_vehs[idx1] = idle_veh
+            valid_vehs[idle_veh] = idx1
+            idx1 += 1
         if idx1 <= 1:
             return 
         idle_pos = []
@@ -129,15 +142,13 @@ class Fleet:
     def best_match_i(self, passenger:Passenger):
         min_dist = math.inf
         opt_veh = None
-        for id in self.vehicles:
-            vehicle = self.vehicles[id]
-            if vehicle.status == "idle":
-                temp_dist = self.dist(vehicle, passenger, 3)
-                if temp_dist < 0:
-                    continue
-                if temp_dist < min_dist:
-                    min_dist = temp_dist
-                    opt_veh = vehicle
+        for idle_veh in self.idle_vehs:
+            temp_dist = self.dist(idle_veh, passenger, 3)
+            if temp_dist < 0:
+                continue
+            if temp_dist < min_dist:
+                min_dist = temp_dist
+                opt_veh = idle_veh
         return min_dist, opt_veh
 
     # find optimal match of service vehicle and passenger based on distance
@@ -145,19 +156,19 @@ class Fleet:
         min_dist = math.inf
         opt_veh = None
         A, B = passenger.location()
-        for id in self.vehicles:
-            vehicle = self.vehicles[id]
-            if vehicle.status == "in_service" and vehicle.load <= 1:
-                O = vehicle.location()
-                D = vehicle.passenger[0].location()[1]
-                # origin detour
-                dist_o = self.detour_dist(O, D, A)
-                # destination detour 
-                dist_d = self.detour_dist(A, D, B)
-                if dist_d + dist_o <= detour_percent * self.dist(vehicle, vehicle.passenger[0], 2):
-                    if (dist_d + dist_o) < min_dist:
-                        min_dist = dist_d + dist_o
-                        opt_veh = vehicle
+        for in_service_veh in self.in_service_vehs:
+            if in_service_veh.load > 1:
+                continue
+            O = in_service_veh.location()
+            D = in_service_veh.passenger[0].location()[1]
+            # origin detour
+            dist_o = self.detour_dist(O, D, A)
+            # destination detour 
+            dist_d = self.detour_dist(A, D, B)
+            if dist_d + dist_o <= detour_percent * self.dist(in_service_veh, in_service_veh.passenger[0], 2):
+                if (dist_d + dist_o) < min_dist:
+                    min_dist = dist_d + dist_o
+                    opt_veh = in_service_veh
         return min_dist, opt_veh
 
 
@@ -168,7 +179,8 @@ class Fleet:
             passenger.status = "unserved"
             self.unserved_num += 1
             return False   
-        opt_veh.assign(passenger)
+        status_request = opt_veh.assign(passenger)
+        self.changeVehStatus(status_request)
         self.served_num += 1
         return True
 
@@ -183,12 +195,14 @@ class Fleet:
         elif (opt_veh_i == None):
             opt_veh_s.add(passenger)
         elif (opt_veh_s == None):
-            opt_veh_i.assign(passenger)
+            status_request = opt_veh_i.assign(passenger)
+            self.changeVehStatus(status_request)
         else:
             if (min_dist_s <= min_dist_i):
                 opt_veh_s.add(passenger)
             else:
-                opt_veh_i.assign(passenger)
+                status_request = opt_veh_i.assign(passenger)
+                self.changeVehStatus(status_request)
         self.served_num += 1
         return True
 
@@ -198,24 +212,19 @@ class Fleet:
         # bi direction map between nparray idx and veh
         valid_vehs = {}
         idx1 = 0
-        for veh_id in self.vehicles:
-            veh = self.vehicles[veh_id]
-            if veh.status == "idle":
-                valid_vehs[idx1], valid_vehs[veh] = veh, idx1
-                idx1 += 1
+        for idle_veh in self.idle_vehs:
+            valid_vehs[idx1], valid_vehs[idle_veh] = idle_veh, idx1
+            idx1 += 1
         weight_table = inf * np.ones((len(passengers), int(len(valid_vehs)/2)))
         # bi direction map between nparray idx and pax
         valid_paxs = {}
         for idx2, pax in enumerate(passengers):
-            for veh_id in self.vehicles:
-                veh = self.vehicles[veh_id]
-                if veh.status != "idle":
-                    continue
-                dist = self.dist(veh, pax, 3)
+            for idle_veh in self.idle_vehs:
+                dist = self.dist(idle_veh, pax, 3)
                 # if there is no connecting path, the weight is still inf
                 if dist == -1:
                     continue
-                weight_table[idx2, valid_vehs[veh]] = dist          
+                weight_table[idx2, valid_vehs[idle_veh]] = dist          
             valid_paxs[idx2], valid_paxs[pax] = pax, idx2
         row, col = linear_sum_assignment(weight_table)
         served_num = 0
@@ -225,7 +234,8 @@ class Fleet:
             opt_pax, opt_veh = valid_paxs[row_idx], valid_vehs[col_idx]
             if (weight_table[row_idx, col_idx] == inf):
                 continue
-            opt_veh.assign(opt_pax)
+            status_request = opt_veh.assign(opt_pax)
+            self.changeVehStatus(status_request)
             served_num += 1
             decision_table[valid_paxs[opt_pax]] = 1
         for i, pax in enumerate(passengers):
@@ -239,17 +249,15 @@ class Fleet:
         ax, ay = [], []
         sx, sy = [], []
         ix, iy = [], []
-        for v_id in self.vehicles:
-            v = self.vehicles[v_id]
-            if (v.status == 'assigned'):
-                ax.append(v.location()[0])
-                ay.append(v.location()[1])
-            elif (v.status == 'in_service'):
-                sx.append(v.location()[0])
-                sy.append(v.location()[1])
-            elif (v.status == 'idle'):
-                ix.append(v.location()[0])
-                iy.append(v.location()[1])
+        for veh_a in self.assigned_vehs:
+            ax.append(veh_a.location()[0])
+            ay.append(veh_a.location()[1])
+        for veh_s in self.in_service_vehs:
+            sx.append(veh_s.location()[0])
+            sy.append(veh_s.location()[1])
+        for veh_i in self.idle_vehs:
+            ix.append(veh_i.location()[0])
+            iy.append(veh_i.location()[1])
         return [ax, ay], [sx, sy], [ix, iy]
 
     # function to return total driving distance, assigned time, inservice time
@@ -268,19 +276,13 @@ class Fleet:
 
     # function to serve the passenger at time t
     def move(self, dt):
-        count1, count2, count3 = 0, 0, 0
         for id in self.vehicles:
-            self.vehicles[id].move(dt)
-            if self.vehicles[id].status == 'assigned':
-                count1 += 1
-            elif self.vehicles[id].status == 'in_service':
-                count2 += 1
-            elif self.vehicles[id].status == 'idle':
-                count3 += 1
+            status_request = self.vehicles[id].move(dt)
+            self.changeVehStatus(status_request)
         self.clock += dt
-        self.assigned_num = count1
-        self.inservice_num = count2
-        self.idle_num = count3
+        self.assigned_num = len(self.assigned_vehs)
+        self.inservice_num = len(self.in_service_vehs) 
+        self.idle_num = len(self.idle_vehs)
 
     def approx_lmdR(self):
         return self.served_num/self.clock

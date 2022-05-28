@@ -1,9 +1,8 @@
 a = set()
-a.add("shit1")
-a.add("shit2")
-a.add("shit3")
-print(a)
-a.remove("shit1")
-print(a)
+a.add("a")
+a.add("a")
+a.add("a")
+b = 1
 for i in a:
     print(i)
+    a.remove("a")

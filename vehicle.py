@@ -4,10 +4,11 @@ from city import City
 from city import CityLink
 import math
 import random
+
 class Vehicle:
     def __init__(self, vehicle_id:tuple, city:City):
-        self.city = city
-        self.id = vehicle_id
+        self.status_table = {0:"assigned", 1:"in_service", 2:"idle"}
+        self.id, self.city = vehicle_id, city
         self.clock = 0
         if city.type_name == "Euclidean" or city.type_name == "Manhattan":    
             self.x, self.y = utils.generate_location(city)
@@ -16,35 +17,29 @@ class Vehicle:
         # around 30 mph
         self.speed = city.max_v
         self.load = 0
-        self.status = "idle"
+        self.status = 2
         self.passenger = []
         # random position when idling
         self.idle_position = None
         # ordered list of passed nodes [..., cityNode1, cityNode2, cityNode3, ...]
-        self.path1 = [] 
-        self.path2 = []  
+        self.path1, self.path2 = [], []  
         # determine whether the pre-assigned route is finished "real-world"
         self.start1 = True
-        # distance of assigned
-        self.dist_a = 0
-        # distance of service
-        self.dist_s = 0
-        # assigned time 
-        self.ta = 0 
-        # inservice time
-        self.ts = 0
+        # distance of assigned, distance of service
+        self.dist_a, self.dist_s = 0, 0        
+        # assigned time and inservice time
+        self.ta, self.ts = 0, 0 
         # frequency of being called
         self.freq = 0
     
     def changeCity(self, city:City):
         self.city = city
         self.speed = city.max_v
-
+ 
     def add(self, passenger:Passenger):
         if self.city.type_name == "Euclidean" or self.city.type_name == "Manhattan": 
             # path info is stored as tuple ((x, y), position_type) 
-            # position_type 1 means passenger origin
-            # position_type 2 means passenger destination
+            # position_type 1 means passenger origin, 2 means passenger destination
             if len(self.passenger) == 0: 
                 self.path1.insert(0, ((passenger.ox, passenger.oy), 1))
                 self.path2.insert(0, ((passenger.dx, passenger.dy), 2))
@@ -61,7 +56,6 @@ class Vehicle:
             self.path1 = path1 
             self.path2 = path2
             self.start1 = True
-        
         self.load += 1
         self.passenger.insert(0, passenger)
     
@@ -74,22 +68,30 @@ class Vehicle:
             self.passenger.pop(0)
         self.path2.pop(0)
         self.load -= 1
-            
+        
+    # change self status to new status, and also change the position in self fleet
+    def changeStatusTo(self, new_status:int):
+        old_status = self.status
+        self.status = new_status
+        return (self.id, old_status, new_status)
+
     def assign(self, passenger:Passenger):
         self.add(passenger)
         self.freq += 1
-        self.status = "assigned"
-        return True
-            
+        status_request = self.changeStatusTo(0)
+        return status_request
+
     def in_service(self):
         self.pick_up()
-        self.status = "in_service"
+        status_request = self.changeStatusTo(1)
+        return status_request
 
     def idle(self):
         self.passenger.pop(0)
         self.load -= 1
-        self.status = "idle"
-        
+        status_request = self.changeStatusTo(2)
+        return status_request
+
     def location(self):
         if self.city.type_name == "Euclidean" or self.city.type_name == "Manhattan":  
             return (self.x, self.y)
@@ -211,48 +213,50 @@ class Vehicle:
     # move along the path and update the location of vehicle
     def move(self, dt):
         self.clock += dt
-        if (self.status == "assigned"):
+        if (self.status == 0):
             self.ta += dt
             self.dist_a += dt * self.speed 
-        elif (self.status == "in_service"):
+        elif (self.status == 1):
             self.ts += dt
-            self.dist_s += dt * self.speed 
+            self.dist_s += dt * self.speed
 
+        # initialize the not-changing status
+        status_request = (self.id, -1, -1)
         # Eulidean movement
         if self.city.type_name == "Euclidean":
-            if self.status == "assigned":
+            if self.status == 0:
                 reached = self.move_Euclidean(dt, self.path1[0][0])
                 if (reached):
-                    self.in_service()
-            elif self.status == "in_service":
+                    status_request = self.in_service()
+            elif self.status == 1:
                 reached = self.move_Euclidean(dt, self.path2[0][0])
                 if (reached):
-                    self.idle()
-            # elif self.status == "idle":
-            #     self.move_Euclidean(dt, (self.city.length/2, self.city.length/2))
+                    status_request = self.idle()
+            elif self.status == 2:
+                reached = self.move_Euclidean(dt, self.idle_position)
 
         elif self.city.type_name == "Manhattan":  
-            if self.status == "assigned":
+            if self.status == 0:
                 reached = self.move_Manhattan(dt, self.path1[0][0])
                 if (reached):
-                    self.in_service()
-            elif self.status == "in_service":
+                    status_request = self.in_service()     
+            elif self.status == 1:
                 reached = self.move_Manhattan(dt, self.path2[0][0])
                 if (reached):
                     if (len(self.passenger) == 1):
-                        self.idle()
+                        status_request = self.idle()
                     else:
                         if self.path2[0][1] == 1:
                             self.pick_up()
                         self.release()
-            elif self.status == "idle":
+            elif self.status == 2:
                 reached = self.move_Manhattan(dt, self.idle_position)
 
         elif self.city.type_name == "real-world":
             # determine the movement of first path
-            if (self.status == "idle"):
-                return 
-            if (self.start1):
+            if (self.status == 2):
+                return status_request
+            elif (self.start1):
                 # edge case path1 length is 1
                 if (len(self.path1) == 1):
                     # different direction 
@@ -264,11 +268,11 @@ class Vehicle:
                             self.start1 = False
                     else: 
                         self.start1 = False
-                    return
+                    return status_request
                 # general case same direction
                 elif (self.link.id == self.city.map[self.path1[0], self.path1[1]]):
                     self.start1 = False
-                    return 
+                    return status_request
                 # general case different direction 
                 else:
                     self.len -= dt * self.speed
@@ -276,12 +280,13 @@ class Vehicle:
                         self.len = 0
                         self.link = self.city.links[self.city.map[self.path1[0], self.path1[1]]]
                         self.start1 = False
-                    return
-            if len(self.path1) != 0:
+                    return status_request
+            
+            elif len(self.path1) != 0:
                 self.move_real_world(dt, self.path1, self.passenger[0].o_link, self.passenger[0].o_len)
-                return 
-            if len(self.path2) != 0:
-                self.in_service()
+                return status_request
+            elif len(self.path2) != 0:
+                status_request = self.in_service()
                 if (len(self.path2) >= 2 and self.link.id != self.city.map[self.path2[0], self.path2[1]]):
                     self.len -= dt * self.speed
                     if (self.len < 0):
@@ -290,5 +295,5 @@ class Vehicle:
                 else:   
                     reached = self.move_real_world(dt, self.path2, self.passenger[0].d_link, self.passenger[0].d_len)
                     if (reached):    
-                        self.idle()
-            return 
+                        status_request = self.idle()
+        return status_request

@@ -13,8 +13,6 @@ class Simulation:
         self.lmd = lmd
         self.fleet = []
         self.events = []
-        # list of unserved passengers added to this global queue for inter-region assignment  
-        self.shared_events = set()
         self.realloc_decision = realloc_decision 
         self.simu_type = simul_type if simul_type in ["homogeneous", "heterogeneous"] else "homogeneous" 
         if self.simu_type == "homogeneous":
@@ -112,9 +110,7 @@ class Simulation:
                 head_time, head = self.events[i].head()
                 while (not self.events[i].empty() and head_time < t):
                     prev += 1
-                    served = self.fleet[i].simple_serve(head.passenger)
-                    if (not served):
-                        self.shared_events.add(head.passenger)
+                    self.fleet[i].simple_serve(head.passenger)
                     self.events[i].dequeue()
                     head_time, head = self.events[i].head()
             self.p.append(prev)
