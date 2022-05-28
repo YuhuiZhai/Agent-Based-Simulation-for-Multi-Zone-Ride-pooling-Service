@@ -37,13 +37,13 @@ class Animation:
         animation = FuncAnimation(fig, update, blit=True, frames = range(0, len(self.fleet_info), compression))
         
         if self.city.type_name == "Euclidean" or self.city.type_name == "Manhattan":  
-            plt.xlim(0, 0.06*60)
-            plt.ylim(0, 0.06*60)
+            plt.xlim(0, self.city.length)
+            plt.ylim(0, self.city.length)
 
-            ax.text(0.05*60, 0.01*60, "in service", color = 'r',  fontsize = 10)
-            ax.text(0.05*60, (0.01-0.003)*60, "assigned", color = 'y', fontsize = 10)
-            ax.text(0.05*60, (0.01-0.006)*60, "idle", color = 'g', fontsize = 10)
-            ax.text(0.05*60, (0.01-0.009)*60, "passenger", color = 'b', fontsize = 10)
+            ax.text(5/6*self.city.length, 1/6*self.city.length, "in service", color = 'r',  fontsize = 10)
+            ax.text(5/6*self.city.length, 0.8/6*self.city.length, "assigned", color = 'y', fontsize = 10)
+            ax.text(5/6*self.city.length, 0.6/6*self.city.length, "idle", color = 'g', fontsize = 10)
+            ax.text(5/6*self.city.length, 0.4/6*self.city.length, "passenger", color = 'b', fontsize = 10)
             plt.xlabel("x (mile)")
             plt.ylabel("y (mile)")
         if self.city.type_name == "real-world":

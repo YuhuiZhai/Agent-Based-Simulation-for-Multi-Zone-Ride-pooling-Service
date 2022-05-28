@@ -7,28 +7,28 @@ from tqdm import tqdm
 import pandas as pd
 from animation import Animation
 class Simulation:
-    def __init__(self, city:City, T:float, lmd:float, fleet_size=None, simul_type="", lmd_map=None, fleet_map=None):
+    def __init__(self, city:City, T:float, lmd:float, fleet_size=None, simul_type="", lmd_map=None, fleet_map=None, realloc_decision  = True):
+        self.clock = 0
         self.T = T
         self.lmd = lmd
         self.fleet = []
         self.events = []
+        # list of unserved passengers added to this global queue for inter-region assignment  
+        self.shared_events = set()
+        self.realloc_decision = realloc_decision 
         self.simu_type = simul_type if simul_type in ["homogeneous", "heterogeneous"] else "homogeneous" 
         if self.simu_type == "homogeneous":
             self.city = city
-            self.fleet_size = fleet_size if fleet_size != None else 1.5*utils.optimal_M()
+            self.fleet_size = fleet_size if fleet_size != None else 1.5*utils.optimal(self.city, self.lmd)[4]
             self.fleet.append(Fleet(fleet_size, city))
             self.events.append(EventQueue(city, T, lmd))
         elif self.simu_type == "heterogeneous":
-            num_per_line = len(lmd_map)
-            self.city = City(city.type_name, length=city.length*num_per_line, origin=(0, 0))
-            for i in range(num_per_line):
-                for j in range(num_per_line):
-                    subcity = City(city.type_name, length=city.length, origin=((num_per_line-1-i)*city.length, j*city.length))
-                    subfleet = Fleet(fleet_map[num_per_line-1-i][j], subcity)
-                    subevents = EventQueue(subcity, T, lmd_map[num_per_line-1-i][j])
-                    self.fleet.append(subfleet)
-                    self.events.append(subevents)
-            
+            self.lmd_map = lmd_map
+            self.fleet_map = fleet_map
+            self.city = City(city.type_name, length=city.length*len(self.lmd_map), origin=(0, 0))
+            self.temp = city        
+            self.hetero_init()    
+      
         # na, ns, ni, p vs t
         self.timeline = None
         self.na, self.ns, self.ni, self.p = [], [], [], []
@@ -37,17 +37,24 @@ class Simulation:
         # list of [px, py]
         self.passenger_info = []
     
-    def make_animation(self, compression = 100, fps=15):
-        print("animation plotting")
-        animation = Animation(self.city, self.fleet_info, self.passenger_info)
-        animation.plot(compression, fps)
-    
+    def hetero_init(self):
+        num_per_line = len(self.lmd_map)
+        for i in range(num_per_line):
+            for j in range(num_per_line):
+                subcity = City(self.temp.type_name, length=self.temp.length, origin=((num_per_line-1-i)*self.temp.length, j*self.temp.length))
+                subfleet = Fleet(self.fleet_map[i][j], subcity)
+                subevents = EventQueue(subcity, self.T, self.lmd_map[i][j])
+                self.fleet.append(subfleet)
+                self.events.append(subevents)
+
     def move(self, res:float):
+        self.clock += res
         for i in range(len(self.fleet)):
             self.fleet[i].move(res)
             self.events[i].move(res)
 
     def update(self):
+        # self.global_reallocation()
         total_na, total_ns, total_ni = 0, 0, 0
         total_ax, total_ay = [], []
         total_sx, total_sy = [], []
@@ -57,33 +64,46 @@ class Simulation:
             total_na += self.fleet[i].assigned_num 
             total_ns += self.fleet[i].inservice_num
             total_ni += self.fleet[i].idle_num
-            self.fleet[i].reallocation()
             [ax, ay], [sx, sy], [ix, iy] = self.fleet[i].sketch_helper()
             [px, py] = self.events[i].sketch_helper()
-            total_ax += ax  
-            total_ay += ay
-            total_sx += sx
-            total_sy += sy
-            total_ix += ix
-            total_iy += iy
-            total_px += px
-            total_py += py
+            total_ax += ax; total_ay += ay; total_sx += sx; total_sy += sy
+            total_ix += ix; total_iy += iy; total_px += px; total_py += py
+            self.fleet[i].local_reallocation(self.realloc_decision)
         self.na.append(total_na)
         self.ns.append(total_ns)
         self.ni.append(total_ni)
         self.fleet_info.append([[total_ax, total_ay], [total_sx, total_sy], [total_ix, total_iy]])
         self.passenger_info.append([total_px, total_py])
         
-        
-    # def reset(self):
-    #     self.fleet = Fleet(self.fleet_size, self.city)
-    #     self.events = EventQueue(self.city, self.T, self.lmd)
-    #     self.timeline = None
-    #     self.na, self.ns, self.ni, self.p = [], [], [], []
-    #     self.fleet_info, self.passenger_info = [], []
+    def reset(self):
+        self.timeline = None
+        self.na, self.ns, self.ni, self.p = [], [], [], []
+        self.fleet_info, self.passenger_info = [], []
+        if self.simu_type == "homogeneous":
+            self.fleet = [Fleet(self.fleet_size, self.city)]
+            self.events = [EventQueue(self.city, self.T, self.lmd)]
+        elif self.simu_type == "heterogeneous":
+            self.hetero_init()
+
+    def global_reallocation(self):
+        free_fleet = {}
+        hard_fleet = {}
+        if self.simu_type == "homogeneous" or self.clock <= 1/100*self.T:
+            return 
+        for i in range(len(self.fleet)):
+            subfleet = self.fleet[i]
+            ni = subfleet.idle_num
+            approx_lmdR = subfleet.approx_lmdR()
+            opt_ni = 1.5*utils.optimal(subfleet.city, approx_lmdR)[1]    
+            if (ni > opt_ni):
+                free_fleet[subfleet] = ni - opt_ni
+            else:
+                hard_fleet[subfleet] = ni - opt_ni 
+            for ff in free_fleet:
+                for hf in hard_fleet:
+                    ff.global_reallocation(hf, int(free_fleet[ff]/len(hard_fleet)))
 
     def simple_serve(self, res:float):
-        # self.reset()
         prev = 0
         self.timeline = np.arange(0, self.T, res)
         for t in tqdm(self.timeline, desc="simple_serve loading"):
@@ -92,7 +112,9 @@ class Simulation:
                 head_time, head = self.events[i].head()
                 while (not self.events[i].empty() and head_time < t):
                     prev += 1
-                    self.fleet[i].simple_serve(head.passenger)
+                    served = self.fleet[i].simple_serve(head.passenger)
+                    if (not served):
+                        self.shared_events.add(head.passenger)
                     self.events[i].dequeue()
                     head_time, head = self.events[i].head()
             self.p.append(prev)
@@ -176,6 +198,8 @@ class Simulation:
             print("unserved number: ", unserved)
         return 
 
+    def make_animation(self, compression = 100, fps=15):
+            print("animation plotting")
+            animation = Animation(self.city, self.fleet_info, self.passenger_info)
+            animation.plot(compression, fps)
     
-
-

@@ -25,7 +25,7 @@ def generate_location(city):
         l = random.random() * city.links[idx].length / 2
         return city.links[idx], l
 
-def optimal_M(city, arrival_rate):
+def optimal(city, arrival_rate):
     if city.type_name == "real-world":
         print("real-world fleet size must be defined")
         return -1
@@ -38,8 +38,11 @@ def optimal_M(city, arrival_rate):
     v = city.max_v
     lmdR = arrival_rate
     opt_Ta = (2*k**2*R/v**2/lmdR)**(1/3)
-    opt_M = k**2*R/(v*opt_Ta)**2 + lmdR*opt_Ta + lmdR*l/v
-    return opt_M
+    opt_ni = k**2*R/(v*opt_Ta)**2
+    opt_na = lmdR*opt_Ta 
+    opt_ns = lmdR*l/v
+    opt_M = opt_ni + opt_na + opt_ns 
+    return opt_Ta, opt_ni, opt_na, opt_ns, opt_M
 
 
     

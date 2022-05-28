@@ -5,16 +5,16 @@ from city import CityLink
 import math
 import random
 class Vehicle:
-    def __init__(self, vehicle_id:int, city:City):
+    def __init__(self, vehicle_id:tuple, city:City):
         self.city = city
         self.id = vehicle_id
         self.clock = 0
-        if self.city.type_name == "Euclidean" or self.city.type_name == "Manhattan":    
+        if city.type_name == "Euclidean" or city.type_name == "Manhattan":    
             self.x, self.y = utils.generate_location(city)
-        if self.city.type_name == "real-world":
+        if city.type_name == "real-world":
             self.link, self.len = utils.generate_location(city)
         # around 30 mph
-        self.speed = self.city.max_v
+        self.speed = city.max_v
         self.load = 0
         self.status = "idle"
         self.passenger = []
@@ -35,6 +35,10 @@ class Vehicle:
         self.ts = 0
         # frequency of being called
         self.freq = 0
+    
+    def changeCity(self, city:City):
+        self.city = city
+        self.speed = city.max_v
 
     def add(self, passenger:Passenger):
         if self.city.type_name == "Euclidean" or self.city.type_name == "Manhattan": 

@@ -17,6 +17,7 @@ class EventQueue:
         self.queue = []
         # dictionary for sketching
         self.record = {}
+        self.city = city
         self.size = 0
         self.clock = 0
         self.T = T
@@ -26,7 +27,7 @@ class EventQueue:
         while t < T:
             dt = random.expovariate(lmd)
             t += dt
-            temp_passenger = Passenger(t, temp_passenger_id, city)
+            temp_passenger = Passenger(t, (self.city.origin, temp_passenger_id), city)
             temp_passenger_id += 1
             event = Event(temp_passenger.t_start, 'appear', None, temp_passenger)
             self.insert(event)

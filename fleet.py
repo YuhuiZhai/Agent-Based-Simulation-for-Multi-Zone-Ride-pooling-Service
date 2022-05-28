@@ -1,6 +1,5 @@
-from sympy import true
+import utils
 from vehicle import Vehicle
-import matplotlib.pyplot as plt
 import math 
 import numpy as np
 from tqdm import tqdm 
@@ -14,16 +13,44 @@ class Fleet:
         self.fleet_size = n
         self.vehicles = {}
         self.city = city
-        self.assigned_num = 0
-        self.inservice_num = 0
-        self.idle_num = n
-        self.unserved_num = 0
+        self.assigned_num, self.inservice_num, self.idle_num = 0, 0, n        
+        self.unserved_num, self.served_num = 0, 0
         for i in range(n):
-            self.vehicles[i] = Vehicle(i, city)
+            self.vehicles[(self.city.origin, i)] = Vehicle((self.city.origin, i), city)
     
-    def reallocation(self):
+    def add(self, vehicle:Vehicle):
+        self.vehicles[vehicle.id] = vehicle
+        self.fleet_size += 1
+        return 
+
+    def release(self, vehicle:Vehicle):
+        self.vehicles.pop(vehicle.id)
+        self.fleet_size -= 1
+        return 
+
+    def global_reallocation(self, fleet, num):
+        sent_vehs = set()
+        for veh_id in self.vehicles:
+            if len(sent_vehs) == num:
+                break
+            veh = self.vehicles[veh_id]
+            if veh.status != "idle":
+                continue
+            sent_vehs.add(veh)
+        for sent_veh in sent_vehs:
+            sent_veh.changeCity(fleet.city)
+            self.release(sent_veh)
+            fleet.add(sent_veh)
+
+    def local_reallocation(self, decision=True):
         if (self.city.type_name == "real-world"):
             return
+        if not decision:
+            for veh_id in self.vehicles:
+                veh = self.vehicles[veh_id]
+                if veh.status == "idle":
+                    veh.idle_postion = utils.generate_location()
+            return 
         valid_vehs = {}
         idx1 = 0
         for veh_id in self.vehicles:
@@ -35,12 +62,12 @@ class Fleet:
         if idx1 <= 1:
             return 
         idle_pos = []
-        num = int((self.idle_num)**(0.5))
-        if (num**2 != self.idle_num):
-            num += 1
+        num = int((idx1)**(0.5))
+        if (num**2 != idx1):
+            num += 1    
         even_space = self.city.length / (num-1)
         for i in range(int(num**2)):
-            idle_pos.append((even_space*(i%num), even_space*int(i/num)))
+            idle_pos.append((self.city.origin[0] + even_space*(i%num), self.city.origin[1] + even_space*int(i/num)))
         weight_table = np.ones((int(len(valid_vehs)/2), len(idle_pos)))
         for i in range(idx1):
             veh = valid_vehs[i]
@@ -67,12 +94,12 @@ class Fleet:
                 + i2*((passenger.ox-passenger.dx)**2 + (passenger.oy-passenger.dy)**2)**(0.5)
             return dist
 
-        if self.city.type_name == "Manhattan":
+        elif self.city.type_name == "Manhattan":
             dist = i1*(abs(vehicle.x - passenger.ox) + abs(vehicle.y - passenger.oy)) \
                 +  i2*(abs(passenger.ox - passenger.dx) + abs(passenger.oy - passenger.dy))
             return dist
 
-        if self.city.type_name == "real-world":
+        elif self.city.type_name == "real-world":
             v_link, v_len = vehicle.link, vehicle.len
             o_link, o_len = passenger.o_link, passenger.o_len
             d_link, d_len = passenger.d_link, passenger.d_len
@@ -85,7 +112,7 @@ class Fleet:
                     dist = i1*v_len + i2*(dist2 + d_len)
                 else:
                     dist = i1*abs(v_len-o_len) + i2*(dist2 - o_len + d_len)
-            if (len(path1) > 1):
+            elif (len(path1) > 1):
                 if (v_link.id == self.city.map[path1[0], path1[1]]):
                     dist = i1*(dist1 - v_len) + i2*(dist2 - d_len)
                 else:
@@ -140,9 +167,10 @@ class Fleet:
         if opt_veh is None:
             passenger.status = "unserved"
             self.unserved_num += 1
-        else:
-            opt_veh.assign(passenger)
-        return
+            return False   
+        opt_veh.assign(passenger)
+        self.served_num += 1
+        return True
 
     # sharing serve based on the detour distance
     def sharing_serve(self, passenger:Passenger, detour_percent:float):
@@ -151,6 +179,7 @@ class Fleet:
         if (opt_veh_i == None and opt_veh_s == None):
             passenger.status = "unserved"
             self.unserved_num += 1
+            return False
         elif (opt_veh_i == None):
             opt_veh_s.add(passenger)
         elif (opt_veh_s == None):
@@ -160,7 +189,8 @@ class Fleet:
                 opt_veh_s.add(passenger)
             else:
                 opt_veh_i.assign(passenger)
-        return
+        self.served_num += 1
+        return True
 
     # batching assignment to serve a group of passenger 
     def batch_serve(self, passengers:list):
@@ -202,6 +232,7 @@ class Fleet:
             if not decision_table[i]:
                 pax.status = "unserved"
         self.unserved_num += len(passengers) - served_num
+        self.served_num += served_num
         return
       
     def sketch_helper(self):
@@ -213,10 +244,10 @@ class Fleet:
             if (v.status == 'assigned'):
                 ax.append(v.location()[0])
                 ay.append(v.location()[1])
-            if (v.status == 'in_service'):
+            elif (v.status == 'in_service'):
                 sx.append(v.location()[0])
                 sy.append(v.location()[1])
-            if (v.status == 'idle'):
+            elif (v.status == 'idle'):
                 ix.append(v.location()[0])
                 iy.append(v.location()[1])
         return [ax, ay], [sx, sy], [ix, iy]
@@ -242,11 +273,15 @@ class Fleet:
             self.vehicles[id].move(dt)
             if self.vehicles[id].status == 'assigned':
                 count1 += 1
-            if self.vehicles[id].status == 'in_service':
+            elif self.vehicles[id].status == 'in_service':
                 count2 += 1
-            if self.vehicles[id].status == 'idle':
+            elif self.vehicles[id].status == 'idle':
                 count3 += 1
         self.clock += dt
         self.assigned_num = count1
         self.inservice_num = count2
         self.idle_num = count3
+
+    def approx_lmdR(self):
+        return self.served_num/self.clock
+    

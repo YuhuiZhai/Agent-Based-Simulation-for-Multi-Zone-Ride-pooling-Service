@@ -38,7 +38,7 @@ random.seed(2)
 
 city = City()
 # simple assignment part
-simulation1 = Simulation(city, fleet_size=30, T=10, lmd=50)
+# simulation1 = Simulation(city, fleet_size=30, T=10, lmd=50)
 # simulation1.simple_serve(res=1/60/60)
 # simulation1.export("simple")
 
@@ -47,13 +47,13 @@ simulation1 = Simulation(city, fleet_size=30, T=10, lmd=50)
 # simulation1.export("batch")
 
 # share assignment
-simulation1.sharing_serve(res=1/60/60, detour_percentage=0.05)
+# simulation1.sharing_serve(res=1/60/60, detour_percentage=0.05)
 # simulation1.export("share")
 
-# hetergeneous part
-# simulation2 = Simulation(city, T=10, lmd=50, lmd_map=[[10, 20], [30, 40]], fleet_map=[[1, 2], [3, 4]])
-
-
 # animation part
-simulation1.make_animation(compression=10, fps=15)
+# simulation1.make_animation(compression=50, fps=15)
 
+# hetergeneous part
+simulation2 = Simulation(city, simul_type="heterogeneous", T=10, lmd=50, lmd_map=[[10, 80], [150, 300]], fleet_map=[[50, 50], [50, 50]])
+simulation2.simple_serve(res=1/60/60)
+simulation2.make_animation(compression=50, fps=15)
