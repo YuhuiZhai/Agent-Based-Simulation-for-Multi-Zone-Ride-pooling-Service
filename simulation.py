@@ -39,7 +39,7 @@ class Simulation:
         num_per_line = len(self.lmd_map)
         for i in range(num_per_line):
             for j in range(num_per_line):
-                subcity = City(self.temp.type_name, length=self.temp.length, origin=((num_per_line-1-i)*self.temp.length, j*self.temp.length))
+                subcity = City(self.temp.type_name, length=self.temp.length, origin=(i*self.temp.length, (num_per_line-1-j)*self.temp.length))
                 subfleet = Fleet(self.fleet_map[i][j], subcity)
                 subevents = EventQueue(subcity, self.T, self.lmd_map[i][j])
                 self.fleet.append(subfleet)
@@ -51,26 +51,29 @@ class Simulation:
             self.fleet[i].move(res)
             self.events[i].move(res)
 
-    def update(self):
-        # self.global_reallocation()
+    def update(self, res):
+        if int(self.clock/res) % 30 == 0:
+            self.global_reallocation()
         total_na, total_ns, total_ni = 0, 0, 0
         total_ax, total_ay = [], []
         total_sx, total_sy = [], []
         total_ix, total_iy = [], []
+        total_interx, total_intery = [], []
         total_px, total_py = [], []
         for i in range(len(self.fleet)):
             total_na += self.fleet[i].assigned_num 
             total_ns += self.fleet[i].inservice_num
             total_ni += self.fleet[i].idle_num
-            [ax, ay], [sx, sy], [ix, iy] = self.fleet[i].sketch_helper()
+            [ax, ay], [sx, sy], [ix, iy], [interx, intery] = self.fleet[i].sketch_helper()
             [px, py] = self.events[i].sketch_helper()
             total_ax += ax; total_ay += ay; total_sx += sx; total_sy += sy
-            total_ix += ix; total_iy += iy; total_px += px; total_py += py
+            total_ix += ix; total_iy += iy; total_interx += interx; total_intery += intery; 
+            total_px += px; total_py += py
             self.fleet[i].local_reallocation(self.realloc_decision)
         self.na.append(total_na)
         self.ns.append(total_ns)
         self.ni.append(total_ni)
-        self.fleet_info.append([[total_ax, total_ay], [total_sx, total_sy], [total_ix, total_iy]])
+        self.fleet_info.append([[total_ax, total_ay], [total_sx, total_sy], [total_ix, total_iy], [total_interx, total_intery]])
         self.passenger_info.append([total_px, total_py])
         
     def reset(self):
@@ -86,26 +89,27 @@ class Simulation:
     def global_reallocation(self):
         free_fleet = {}
         hard_fleet = {}
-        if self.simu_type == "homogeneous" or self.clock <= 1/100*self.T:
+        if self.simu_type == "homogeneous":
             return 
         for i in range(len(self.fleet)):
             subfleet = self.fleet[i]
+            subevent = self.events[i]
             ni = subfleet.idle_num
-            approx_lmdR = subfleet.approx_lmdR()
-            opt_ni = 1.5*utils.optimal(subfleet.city, approx_lmdR)[1]    
+            lmdR = subevent.lmd
+            opt_ni = utils.optimal(subfleet.city, lmdR)[1]    
             if (ni > opt_ni):
                 free_fleet[subfleet] = ni - opt_ni
             else:
                 hard_fleet[subfleet] = ni - opt_ni 
-            for ff in free_fleet:
-                for hf in hard_fleet:
-                    ff.global_reallocation(hf, int(free_fleet[ff]/len(hard_fleet)))
+        for ff in free_fleet:
+            for hf in hard_fleet:
+                ff.global_reallocation(hf, int(0.3*free_fleet[ff]/len(hard_fleet)))
 
     def simple_serve(self, res:float):
         prev = 0
         self.timeline = np.arange(0, self.T, res)
         for t in tqdm(self.timeline, desc="simple_serve loading"):
-            self.update()
+            self.update(res)
             for i in range(len(self.fleet)):
                 head_time, head = self.events[i].head()
                 while (not self.events[i].empty() and head_time < t):
@@ -122,7 +126,7 @@ class Simulation:
         self.timeline = np.arange(0, self.T, res)
         for t in tqdm(self.timeline, desc="sharing_serve loading"):
             for i in range(len(self.fleet)):
-                self.update()
+                self.update(res)
                 for i in range(len(self.fleet)):
                     head_time, head = self.events[i].head()
                     while (not self.events[i].empty() and head_time < t):
@@ -141,7 +145,7 @@ class Simulation:
         prev = 0
         
         for t in tqdm(self.timeline, desc="batch_serve loading"):
-            self.update()
+            self.update(res)
             # when it is batching time, starts serving
             if (batch_idx >= len(batch_timeline)):
                 batch_time = self.timeline[-1]

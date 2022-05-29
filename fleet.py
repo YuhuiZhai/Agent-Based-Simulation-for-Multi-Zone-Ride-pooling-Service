@@ -10,11 +10,10 @@ from scipy.optimize import linear_sum_assignment
 class Fleet:
     def __init__(self, n:int, city:City):
         self.fleet_size, self.city = n, city
-        self.id = city.origin
         self.clock = 0
         self.vehicles = {}
-        self.assigned_vehs, self.in_service_vehs, self.idle_vehs = set(), set(), set()
-        self.vehs_group = [self.assigned_vehs, self.in_service_vehs, self.idle_vehs]
+        self.assigned_vehs, self.in_service_vehs, self.idle_vehs, self.inter_vehs = set(), set(), set(), set()
+        self.vehs_group = [self.assigned_vehs, self.in_service_vehs, self.idle_vehs, self.inter_vehs]
         self.assigned_num, self.inservice_num, self.idle_num = 0, 0, n 
         self.unserved_num, self.served_num = 0, 0
         for i in range(n):
@@ -34,16 +33,16 @@ class Fleet:
         return 
 
     # add idle vehicle from other fleet
-    def add_idle(self, vehicle:Vehicle):
+    def add_veh(self, vehicle:Vehicle):
         self.vehicles[vehicle.id] = vehicle
-        self.idle_vehs.add(vehicle)
+        self.vehs_group[vehicle.status].add(vehicle)
         self.fleet_size += 1
         return 
 
     # release idle vehicle to other fleet
-    def release_idle(self, vehicle:Vehicle):
+    def release_veh(self, vehicle:Vehicle):
         self.vehicles.pop(vehicle.id)
-        self.idle_vehs.remove(vehicle)
+        self.vehs_group[vehicle.status].remove(vehicle)
         self.fleet_size -= 1
         return 
 
@@ -53,11 +52,12 @@ class Fleet:
             if len(sent_vehs) == num:
                 break
             sent_vehs.add(idle_veh)
-
         for sent_veh in sent_vehs:
+            self.release_veh(sent_veh)
+            fleet.add_veh(sent_veh)
             sent_veh.changeCity(fleet.city)
-            self.release_idle(sent_veh)
-            fleet.add_idle(sent_veh)
+            status_request = sent_veh.interchanging()
+            fleet.changeVehStatus(status_request)
 
     def local_reallocation(self, decision=True):
         if (self.city.type_name == "real-world"):
@@ -249,6 +249,7 @@ class Fleet:
         ax, ay = [], []
         sx, sy = [], []
         ix, iy = [], []
+        interx, intery = [], []
         for veh_a in self.assigned_vehs:
             ax.append(veh_a.location()[0])
             ay.append(veh_a.location()[1])
@@ -258,7 +259,10 @@ class Fleet:
         for veh_i in self.idle_vehs:
             ix.append(veh_i.location()[0])
             iy.append(veh_i.location()[1])
-        return [ax, ay], [sx, sy], [ix, iy]
+        for veh_inter in self.inter_vehs:
+            interx.append(veh_inter.location()[0])
+            intery.append(veh_inter.location()[1])
+        return [ax, ay], [sx, sy], [ix, iy], [interx, intery]
 
     # function to return total driving distance, assigned time, inservice time
     def info(self):

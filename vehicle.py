@@ -1,3 +1,4 @@
+from os import stat_result
 import utils 
 from passenger import Passenger
 from city import City
@@ -7,7 +8,7 @@ import random
 
 class Vehicle:
     def __init__(self, vehicle_id:tuple, city:City):
-        self.status_table = {0:"assigned", 1:"in_service", 2:"idle"}
+        self.status_table = {0:"assigned", 1:"in_service", 2:"idle", 3:"interchanged"}
         self.id, self.city = vehicle_id, city
         self.clock = 0
         if city.type_name == "Euclidean" or city.type_name == "Manhattan":    
@@ -35,7 +36,7 @@ class Vehicle:
     def changeCity(self, city:City):
         self.city = city
         self.speed = city.max_v
- 
+
     def add(self, passenger:Passenger):
         if self.city.type_name == "Euclidean" or self.city.type_name == "Manhattan": 
             # path info is stored as tuple ((x, y), position_type) 
@@ -89,6 +90,14 @@ class Vehicle:
     def idle(self):
         self.passenger.pop(0)
         self.load -= 1
+        status_request = self.changeStatusTo(2)
+        return status_request
+
+    def interchanging(self):
+        status_requst = self.changeStatusTo(3)
+        return status_requst
+    
+    def interchanged(self):
         status_request = self.changeStatusTo(2)
         return status_request
 
@@ -234,6 +243,10 @@ class Vehicle:
                     status_request = self.idle()
             elif self.status == 2:
                 reached = self.move_Euclidean(dt, self.idle_position)
+            elif self.status == 3:
+                reached = self.move_Euclidean(dt, self.idle_position)
+                if (reached):
+                    status_request = self.interchanged()
 
         elif self.city.type_name == "Manhattan":  
             if self.status == 0:
@@ -251,6 +264,10 @@ class Vehicle:
                         self.release()
             elif self.status == 2:
                 reached = self.move_Manhattan(dt, self.idle_position)
+            elif self.status == 3:
+                reached = self.move_Manhattan(dt, self.idle_position)
+                if (reached):
+                    status_request = self.interchanged()
 
         elif self.city.type_name == "real-world":
             # determine the movement of first path
