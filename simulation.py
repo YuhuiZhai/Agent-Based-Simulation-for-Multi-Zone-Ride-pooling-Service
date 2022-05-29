@@ -7,22 +7,23 @@ from tqdm import tqdm
 import pandas as pd
 from animation import Animation
 class Simulation:
-    def __init__(self, city:City, T:float, lmd:float, fleet_size=None, simul_type="", lmd_map=None, fleet_map=None, realloc_decision  = True):
+    def __init__(self, city:City, T:float, lmd=200, fleet_size=None, simul_type="", inter = True, lmd_map=None, fleet_map=None, realloc_decision  = True):
         self.clock = 0
         self.T = T
-        self.lmd = lmd
         self.fleet = []
         self.events = []
         self.realloc_decision = realloc_decision 
         self.simu_type = simul_type if simul_type in ["homogeneous", "heterogeneous"] else "homogeneous" 
         if self.simu_type == "homogeneous":
             self.city = city
+            self.lmd = lmd
             self.fleet_size = fleet_size if fleet_size != None else 1.5*utils.optimal(self.city, self.lmd)[4]
             self.fleet.append(Fleet(fleet_size, city))
             self.events.append(EventQueue(city, T, lmd))
         elif self.simu_type == "heterogeneous":
             self.lmd_map = lmd_map
             self.fleet_map = fleet_map
+            self.inter = inter
             self.city = City(city.type_name, length=city.length*len(self.lmd_map), origin=(0, 0))
             self.temp = city        
             self.hetero_init()    
@@ -52,7 +53,7 @@ class Simulation:
             self.events[i].move(res)
 
     def update(self, res):
-        if int(self.clock/res) % 30 == 0:
+        if self.inter and int(self.clock/res) % 30 == 0:
             self.global_reallocation()
         total_na, total_ns, total_ni = 0, 0, 0
         total_ax, total_ay = [], []

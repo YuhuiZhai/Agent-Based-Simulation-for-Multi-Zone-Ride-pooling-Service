@@ -56,6 +56,7 @@ class Fleet:
             self.release_veh(sent_veh)
             fleet.add_veh(sent_veh)
             sent_veh.changeCity(fleet.city)
+            sent_veh.idle_position = utils.generate_location(fleet.city)
             status_request = sent_veh.interchanging()
             fleet.changeVehStatus(status_request)
 

@@ -21,7 +21,7 @@ class Vehicle:
         self.status = 2
         self.passenger = []
         # random position when idling
-        self.idle_position = None
+        self.idle_position = self.x, self.y
         # ordered list of passed nodes [..., cityNode1, cityNode2, cityNode3, ...]
         self.path1, self.path2 = [], []  
         # determine whether the pre-assigned route is finished "real-world"
