@@ -8,8 +8,8 @@ from passenger import Passenger
 from scipy.optimize import linear_sum_assignment
 
 class Fleet:
-    def __init__(self, n:int, city:City):
-        self.fleet_size, self.city = n, city
+    def __init__(self, n:int, city:City, id):
+        self.fleet_size, self.city, self.id = n, city, id
         self.clock = 0
         self.vehicles = {}
         self.assigned_vehs, self.in_service_vehs, self.idle_vehs, self.inter_vehs = set(), set(), set(), set()
@@ -17,8 +17,8 @@ class Fleet:
         self.assigned_num, self.inservice_num, self.idle_num = 0, 0, n 
         self.unserved_num, self.served_num = 0, 0
         for i in range(n):
-            veh = Vehicle((self.city.origin, i), city)
-            self.vehicles[(self.city.origin, i)] = veh
+            veh = Vehicle((self.id, i), city)
+            self.vehicles[(self.id, i)] = veh
             self.idle_vehs.add(veh)
     
     # change veh's status from status1 to status2 
@@ -46,7 +46,7 @@ class Fleet:
         self.fleet_size -= 1
         return 
 
-    def global_reallocation(self, fleet, num):
+    def global_reallocation(self, fleet, num:int):
         sent_vehs = set()
         for idle_veh in self.idle_vehs:
             if len(sent_vehs) == num:

@@ -57,4 +57,4 @@ class Animation:
             plt.ylabel("latitude")      
 
         writergif = PillowWriter(fps) 
-        animation.save("tax.gif", writer=writergif)
+        animation.save("taxi.gif", writer=writergif)

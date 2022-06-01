@@ -12,22 +12,20 @@ class Event:
         self.passenger = passenger
 
 class EventQueue:
-    def __init__(self, city:City, T:float, lmd:float):
+    def __init__(self, city:City, T:float, lmd:float, id):
         # queue by time priority
         self.queue = []
         # dictionary for sketching
         self.record = {}
-        self.city = city
+        self.city, self.T, self.lmd, self.id = city, T, lmd, id
         self.size = 0
         self.clock = 0
-        self.T = T
-        self.lmd = lmd
         t = 0
         temp_passenger_id = 0
         while t < T:
             dt = random.expovariate(lmd)
             t += dt
-            temp_passenger = Passenger(t, (self.city.origin, temp_passenger_id), city)
+            temp_passenger = Passenger(t, (self.id, temp_passenger_id), city)
             temp_passenger_id += 1
             event = Event(temp_passenger.t_start, 'appear', None, temp_passenger)
             self.insert(event)

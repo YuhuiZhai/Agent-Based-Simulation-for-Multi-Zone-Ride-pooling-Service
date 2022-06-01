@@ -36,11 +36,11 @@ random.seed(2)
 #     city.add_link(CityLink(temp_id, temp_origin, temp_destination))
 # print("read file completed")
 
-city = City()
+# city = City()
 # simple assignment part
-simulation1 = Simulation(city, fleet_size=30, T=10, lmd=50)
-simulation1.simple_serve(res=1/60/60)
-simulation1.export("simple")
+# simulation1 = Simulation(city, fleet_size=50, T=10, lmd=200)
+# simulation1.simple_serve(res=1/60/60)
+# simulation1.export("simple")
 
 # batch assignment part
 # simulation1.batch_serve(res=1/60/60, dt=1/6)
@@ -54,6 +54,11 @@ simulation1.export("simple")
 # simulation1.make_animation(compression=50, fps=15)
 
 # hetergeneous part
-# simulation2 = Simulation(city, simul_type="heterogeneous", T=10, inter=False, lmd_map=[[500, 5], [5, 50]], fleet_map=[[8, 8], [8, 100]])
-# simulation2.simple_serve(res=1/60/60)
-# simulation2.make_animation(compression=20, fps=15)
+city = City(length=3.6)
+a = [[500, 5], [5, 50]]
+b = [[8, 8], [8, 100]]
+simulation2 = Simulation(city, simul_type="heterogeneous", inter=True, T=10, lmd_map=a, fleet_map=b)
+simulation2.simple_serve(res=1/60/60)
+simulation2.make_animation(compression=20, fps=15)
+
+
