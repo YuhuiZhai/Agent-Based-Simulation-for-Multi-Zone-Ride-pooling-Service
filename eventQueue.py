@@ -1,11 +1,11 @@
 import heapq as hq
 import random
-from vehicle import Vehicle
+from unit import Unit
 from passenger import Passenger
 from city import City
 
 class Event:
-    def __init__(self, time, event_type, vehicle:Vehicle, passenger:Passenger):
+    def __init__(self, time, event_type, vehicle:Unit, passenger:Passenger):
         self.time = time
         self.type = event_type
         self.vehicle = vehicle

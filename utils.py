@@ -50,3 +50,21 @@ def zip_csv(namelist:list, datalist:list, name="data"):
         data_table[namelist[i]] = datalist[i] 
     output = pd.DataFrame(data_table)
     output.to_csv(name+'.csv')
+
+def location_helper(link, len):
+    x1, y1 = link.origin.x, link.origin.y
+    x2, y2 = link.destination.x, link.destination.y
+    x3, y3 = None, None
+    if (x1 == x2):
+        x3 = x1
+        if (y1 < y2): y3 = y1 + len
+        else: y3 = y1 - len
+        return (x3, y3)
+    k = (y2 - y1)/(x2 - x1)
+    if (x1 < x2):
+        x3 = x1 + len / link.length * abs(x2 - x1)
+        y3 = y1 + k*(x3 - x1)
+    if (x1 > x2):
+        x3 = x1 - len / link.length * abs(x2 - x1)
+        y3 = y1 + k*(x3 - x1)   
+    return (x3, y3)

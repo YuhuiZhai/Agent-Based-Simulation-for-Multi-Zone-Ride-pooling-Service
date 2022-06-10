@@ -161,14 +161,17 @@ Button(frame5, text="define parameters", command=click_sf).grid(row=2, column=0,
 elist = [e21, e31, e32, e41, e42]
 varlist = [simul_type, local_reallocation, global_reallocation, city_type, serving_function]
 def simulate():
-    global linkfile
-    global nodefile
     global s
     global res
     global dt
     global detour_percentage
     ct, cl, v = city_type.get(), float(e41.get()) if e41.get() != "" else -1, float(e42.get())
-    city = City(type_name=ct, length=cl, max_v=v, node_file=nodefile, link_file=linkfile)
+    if ct == "real-world":
+        global linkfile
+        global nodefile
+        city = City(type_name=ct, length=cl, max_v=v, node_file=nodefile, link_file=linkfile)
+    else:
+        city = City(type_name=ct, length=cl, max_v=v)
     T = float(e32.get())
     lr = local_reallocation.get()
     gr = global_reallocation.get()

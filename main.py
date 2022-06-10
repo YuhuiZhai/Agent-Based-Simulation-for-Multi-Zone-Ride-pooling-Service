@@ -1,7 +1,5 @@
-import utils
+
 import random 
-from city import CityNode
-from city import CityLink
 from city import City
 from simulation import Simulation
 
@@ -12,10 +10,10 @@ random.seed(2)
 
 city = City()
 # simple assignment part
-simulation1 = Simulation(city, fleet_size=50, T=1, lmd=200)
+simulation1 = Simulation(city, fleet_size=50, T=1, lmd=50)
 simulation1.simple_serve(res=1/60/60)
 # simulation1.error()
-simulation1.export(name="simple", path="C:/22 Summer/week 4")
+# simulation1.export(name="simple", path="C:/22 Summer/week 4")
 
 # batch assignment part
 # simulation1.batch_serve(res=1/60/60, dt=1/6)
@@ -26,7 +24,7 @@ simulation1.export(name="simple", path="C:/22 Summer/week 4")
 # simulation1.export("share")
 
 # animation part
-# simulation1.make_animation(compression=50, fps=15)
+simulation1.make_animation(compression=25, fps=15)
 
 # hetergeneous part
 # city = City(length=3.6)

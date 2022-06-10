@@ -3,7 +3,7 @@ import numpy as np
 import math
 import utils
 from city import City
-from fleet import Fleet
+from fleet_taxi import Taxifleet
 from eventQueue import EventQueue
 from tqdm import tqdm
 from animation import Animation
@@ -24,7 +24,7 @@ class Simulation:
             self.city = city
             self.lmd = lmd
             self.fleet_size = fleet_size if fleet_size != None else 1.5*utils.optimal(self.city, self.lmd)[4]
-            self.fleet[0] = Fleet(fleet_size, city, 0)
+            self.fleet[0] = Taxifleet(fleet_size, city, 0)
             self.events[0] = EventQueue(city, T, lmd, 0)
         elif self.simu_type == "heterogeneous":
             self.lmd_map, self.fleet_map, self.gr, self.threshold_map = lmd_map, fleet_map, gr, threshold_map
@@ -42,7 +42,7 @@ class Simulation:
         for i in range(num_per_line):
             for j in range(num_per_line):
                 subcity = City(self.temp.type_name, length=self.temp.length, origin=(i*self.temp.length, (num_per_line-1-j)*self.temp.length))
-                subfleet = Fleet(self.fleet_map[i][j], subcity, str(i*num_per_line+j))
+                subfleet = Taxifleet(self.fleet_map[i][j], subcity, str(i*num_per_line+j))
                 subevents = EventQueue(subcity, self.T, self.lmd_map[i][j], str(i*num_per_line+j))
                 self.fleet[subfleet.id] = subfleet
                 self.events[subevents.id] = subevents
@@ -63,15 +63,15 @@ class Simulation:
         total_interx, total_intery = [], []
         total_px, total_py = [], []
         for key in self.fleet:
-            total_na += self.fleet[key].assigned_num 
-            total_ns += self.fleet[key].inservice_num
-            total_ni += self.fleet[key].idle_num
-            total_ninter += self.fleet[key].inter_num
-            [ax, ay], [sx, sy], [ix, iy], [interx, intery] = self.fleet[key].sketch_helper()
+            total_na += len(self.fleet[key].vehs_group[0])
+            total_ns += len(self.fleet[key].vehs_group[1])
+            total_ni += len(self.fleet[key].vehs_group[2])
+            total_ninter += len(self.fleet[key].vehs_group[3])
             [px, py] = self.events[key].sketch_helper()
+            total_px += px; total_py += py
+            [ax, ay], [sx, sy], [ix, iy], [interx, intery] = self.fleet[key].sketch_helper()
             total_ax += ax; total_ay += ay; total_sx += sx; total_sy += sy
             total_ix += ix; total_iy += iy; total_interx += interx; total_intery += intery; 
-            total_px += px; total_py += py
             self.fleet[key].local_reallocation(self.lr)
         self.na.append(total_na)
         self.ns.append(total_ns)
