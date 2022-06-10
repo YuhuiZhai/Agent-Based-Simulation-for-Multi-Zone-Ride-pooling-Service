@@ -9,14 +9,16 @@ from tqdm import tqdm
 from animation import Animation
 import pandas as pd
 import pulp
+import scipy.optimize as sp
 class Simulation:
-    def __init__(self, city:City, T:float, lmd=200, fleet_size=None, simul_type="",
-                inter = True, lmd_map=None, fleet_map=None, threshold_map = None, realloc_decision  = True):
+    def __init__(self, city:City, T:float, simul_type="", lmd=None, fleet_size=None, 
+                lmd_map=None, fleet_map=None, gr = True, threshold_map = None, lr  = True):
         self.clock = 0
         self.T = T
         self.fleet = {}
         self.events = {}
-        self.realloc_decision = realloc_decision 
+        self.lr = lr 
+        self.gr = gr
         self.simu_type = simul_type if simul_type in ["homogeneous", "heterogeneous"] else "homogeneous" 
         if self.simu_type == "homogeneous":
             self.city = city
@@ -25,17 +27,15 @@ class Simulation:
             self.fleet[0] = Fleet(fleet_size, city, 0)
             self.events[0] = EventQueue(city, T, lmd, 0)
         elif self.simu_type == "heterogeneous":
-            self.lmd_map, self.fleet_map, self.inter, self.threshold_map = lmd_map, fleet_map, inter, threshold_map
+            self.lmd_map, self.fleet_map, self.gr, self.threshold_map = lmd_map, fleet_map, gr, threshold_map
+            self.fleet_size, self.lmd = sum(sum(i) for i in fleet_map), sum(sum(i) for i in lmd_map) 
             self.city = City(city.type_name, length=city.length*len(self.lmd_map), origin=(0, 0))
             self.temp = city        
             self.hetero_init()    
-        # na, ns, ni, p vs t
         self.timeline = None
-        self.na, self.ns, self.ni, self.p = [], [], [], []
-        # list of [ax, ay], [sx, sy], [ix, iy]
-        self.fleet_info = []
-        # list of [px, py]
-        self.passenger_info = []
+        self.na, self.ns, self.ni, self.ninter, self.p = [], [], [], [], []
+        self.fleet_info = [] # list of [ax, ay], [sx, sy], [ix, iy]
+        self.passenger_info = [] # list of [px, py]
     
     def hetero_init(self):
         num_per_line = len(self.lmd_map)
@@ -54,9 +54,9 @@ class Simulation:
             self.events[key].move(res)
 
     def update(self, res):
-        if self.simu_type == "heterogeneous" and self.inter and int(self.clock/res) % 200 == 0:
+        if self.simu_type == "heterogeneous" and self.gr and int(self.clock/res) % 200 == 0:
             self.global_reallocation()
-        total_na, total_ns, total_ni = 0, 0, 0
+        total_na, total_ns, total_ni, total_ninter = 0, 0, 0, 0
         total_ax, total_ay = [], []
         total_sx, total_sy = [], []
         total_ix, total_iy = [], []
@@ -66,15 +66,17 @@ class Simulation:
             total_na += self.fleet[key].assigned_num 
             total_ns += self.fleet[key].inservice_num
             total_ni += self.fleet[key].idle_num
+            total_ninter += self.fleet[key].inter_num
             [ax, ay], [sx, sy], [ix, iy], [interx, intery] = self.fleet[key].sketch_helper()
             [px, py] = self.events[key].sketch_helper()
             total_ax += ax; total_ay += ay; total_sx += sx; total_sy += sy
             total_ix += ix; total_iy += iy; total_interx += interx; total_intery += intery; 
             total_px += px; total_py += py
-            self.fleet[key].local_reallocation(self.realloc_decision)
+            self.fleet[key].local_reallocation(self.lr)
         self.na.append(total_na)
         self.ns.append(total_ns)
         self.ni.append(total_ni)
+        self.ninter.append(total_ninter)
         self.fleet_info.append([[total_ax, total_ay], [total_sx, total_sy], [total_ix, total_iy], [total_interx, total_intery]])
         self.passenger_info.append([total_px, total_py])
         
@@ -208,9 +210,49 @@ class Simulation:
             self.move(res)
             self.p.append(prev)     
         return   
+    
+    def passenger_data(self):
+        if (self.simu_type == "heterogeneous"):
+            return 
+        avg_ta = self.events[0].info()
+        return avg_ta
+        
 
-    # def sharing_serve(self, res:float, detour_dist=0, detour_percent=0):
-    def export(self, name=""):
+    def fleet_data(self):
+        if (self.simu_type == "heterogeneous"):
+            return 
+        dist_a, dist_s, ta, ts, freq, unserved = self.fleet[0].homo_info()
+        print("unserved: ", unserved)
+        avg_freq = sum(freq) / len(freq)
+        avg_ta, avg_ts = sum(ta)/len(ta)/avg_freq, sum(ts)/len(ts)/avg_freq
+        avg_na, avg_ns, avg_ni = sum(self.na) / len(self.na), sum(self.ns) / len(self.ns), sum(self.ni) / len(self.ni)
+        return avg_ta, avg_ts, avg_na, avg_ns, avg_ni
+    
+    def error(self, mesg = True):
+        avg_ta, avg_ts, avg_na, avg_ns, avg_ni = self.info()
+        M = avg_na + avg_ns + avg_ni
+        k, L, R, v, lmd = 0.5, 2**(1/2)/3*self.city.length, self.city.length**2, self.city.max_v, self.lmd
+        if self.city.type_name == "Manhattan":
+            k = 0.63
+            L = 2/3*self.city.length
+        def f(Ta):
+            opt_M = k**2*R/(v*Ta)**2 + lmd*Ta + lmd*L/v - self.fleet_size
+            return opt_M
+        opt = (2*0.63**2*R/v**2/lmd)**(1/3)
+        
+        sol = sp.root_scalar(f, bracket=[10e-10, opt], method='bisect')
+        ideal_ta = sol.root
+        ideal_na, ideal_ns, ideal_ni = lmd*ideal_ta, lmd*L/v, k**2*R/(v*ideal_ta)**2  
+        error_ta = abs(avg_ta-ideal_ta)/ideal_ta
+        error_na, error_ns, error_ni = abs(avg_na-ideal_na)/ideal_na, abs(avg_ns-ideal_ns)/ideal_ns, abs(avg_ni-ideal_ni)/ideal_ni
+        if mesg:
+            print("ideal ta / simulated ta / relative error: \n",  ideal_ta, "/", avg_ta, "/", error_ta*100, "%")
+            print("ideal na / simulated na / relative error: \n", ideal_na, "/", avg_na, "/", error_na*100, "%")
+            print("ideal ns / simulated ns / relative error: \n", ideal_ns, "/", avg_ns, "/", error_ns*100, "%")
+            print("ideal ni / simulated ni / relative error: \n", ideal_ni, "/", avg_ni, "/", error_ni*100, "%")
+        return error_ta, error_na, error_ns, error_ni
+
+    def export(self, name="", path=""):
         name_ = name
         if (name_ != ""):
             name_ += "_"
@@ -219,14 +261,15 @@ class Simulation:
             'passenger' : self.p,
             'na': self.na, 
             'ns': self.ns, 
-            'ni': self.ni 
+            'ni': self.ni,
+            'ninter': self.ninter
         }
         output_1 = pd.DataFrame(veh_num)
-        output_1.to_csv(name_ + 'veh_num_M_' + str(self.fleet_size) + '_lambda_' + str(self.lmd) + '.csv')
+        output_1.to_csv(path + "/" + name_ + 'veh_num_M_' + str(self.fleet_size) + '_lambda_' + str(self.lmd) + '.csv')
         if (self.simu_type == "heterogeneous"):
             return 
         elif (self.simu_type == "homogeneous"):
-            dist_a, dist_s, ta, ts, freq, unserved = self.fleet[0].info()
+            dist_a, dist_s, ta, ts, freq, unserved = self.fleet[0].homo_info()
             fleet_info = {
                 'dist_a' : dist_a,
                 'dist_s' : dist_s,
@@ -236,7 +279,7 @@ class Simulation:
                 'freq' : freq
             }
             output_2 = pd.DataFrame(fleet_info)
-            output_2.to_csv(name_ + 'fleet_info_M_' + str(self.fleet_size) + '_lambda_' + str(self.lmd) + '.csv')
+            output_2.to_csv(path + "/" + name_ + 'fleet_info_M_' + str(self.fleet_size) + '_lambda_' + str(self.lmd) + '.csv')
             print("unserved number: ", unserved)
         return 
 

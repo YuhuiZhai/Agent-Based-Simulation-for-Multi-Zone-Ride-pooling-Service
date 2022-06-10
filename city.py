@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import heapq as hq
 import utils 
 from tqdm import tqdm
+import xlrd
 
 def assign_type():
         table = {"1":"Euclidean", "2":"Manhattan", "3":"real-world", 
@@ -49,12 +50,13 @@ class CityLink:
 
     
 class City:
-    def __init__(self, type_name="", length=3.6, max_v=18, origin=(0, 0)):
+    def __init__(self, type_name="", length=3.6, max_v=18.0, origin=(0, 0), node_file="", link_file=""):
         # 3 types: Eucledean, Manhatten, real-world
         self.type_name = type_name 
         self.length = length
         self.max_v = max_v
         self.origin = origin
+        self.node_file, self.link_file = node_file, link_file
         if (self.type_name == ""):
             type = assign_type()
             while (type == None):
@@ -70,7 +72,8 @@ class City:
             self.map = {}
             # key is node, value is list of neighbour node
             self.neigh = {}
-    
+            self.init()
+
     def set_origin(self, new_origin:tuple):
         self.origin = new_origin
 
@@ -92,6 +95,33 @@ class City:
         else: self.neigh[new_link.origin.id].append(new_link.destination.id)    
         self.num_link += 1
     
+    def init(self):
+        if self.type_name != "real-world":
+            return
+        if self.node_file == "" or self.link_file == "":
+            print("Incorrect file input")
+            return 
+        workbook1 = xlrd.open_workbook(self.node_file)
+        worksheet1 = workbook1.sheet_by_index(0)
+        num_nodes = worksheet1.nrows
+        for row in range(1, num_nodes):
+            temp_id = int(worksheet1.cell_value(row, 0))
+            temp_x = worksheet1.cell_value(row, 1)
+            temp_y = worksheet1.cell_value(row, 2)
+            self.add_node(CityNode(temp_id, temp_x, temp_y))
+
+        workbook2 = xlrd.open_workbook(self.link_file)
+        worksheet2 = workbook2.sheet_by_index(0)
+        num_links = worksheet2.nrows
+        for row in range(1, num_links):
+            temp_id = int(worksheet2.cell_value(row, 0))
+            temp_origin = self.nodes[int(worksheet2.cell_value(row, 1))]
+            temp_destination =\
+            self.nodes[int(worksheet2.cell_value(row, 2))]
+            self.add_link(CityLink(temp_id, temp_origin, temp_destination))
+        print("read file completed")
+        return
+
     def sketch(self):
         if (self.type_name == "real-world"):
             for idx, key in enumerate(self.links):

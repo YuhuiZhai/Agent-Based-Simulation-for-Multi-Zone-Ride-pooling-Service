@@ -14,7 +14,7 @@ class Fleet:
         self.vehicles = {}
         self.assigned_vehs, self.in_service_vehs, self.idle_vehs, self.inter_vehs = set(), set(), set(), set()
         self.vehs_group = [self.assigned_vehs, self.in_service_vehs, self.idle_vehs, self.inter_vehs]
-        self.assigned_num, self.inservice_num, self.idle_num = 0, 0, n 
+        self.assigned_num, self.inservice_num, self.idle_num, self.inter_num = 0, 0, n, 0 
         self.unserved_num, self.served_num = 0, 0
         for i in range(n):
             veh = Vehicle((self.id, i), city)
@@ -172,7 +172,6 @@ class Fleet:
                     opt_veh = in_service_veh
         return min_dist, opt_veh
 
-
     # figure out the optimal taxi to serve the passenger 
     def simple_serve(self, passenger:Passenger):
         min_dist, opt_veh = self.best_match_i(passenger)
@@ -266,7 +265,7 @@ class Fleet:
         return [ax, ay], [sx, sy], [ix, iy], [interx, intery]
 
     # function to return total driving distance, assigned time, inservice time
-    def info(self):
+    def homo_info(self):
         dist_a, dist_s = [], []
         ta, ts = [], []
         freq = []
@@ -288,6 +287,7 @@ class Fleet:
         self.assigned_num = len(self.assigned_vehs)
         self.inservice_num = len(self.in_service_vehs) 
         self.idle_num = len(self.idle_vehs)
+        self.inter_num = len(self.inter_vehs)
 
     def approx_lmdR(self):
         return self.served_num/self.clock

@@ -1,5 +1,4 @@
-from asyncio.windows_events import NULL
-import math
+import pandas as pd
 import random 
 def onplotdist(node_1, node_2):
         lo1 = node_1.x
@@ -45,4 +44,9 @@ def optimal(city, arrival_rate):
     return opt_Ta, opt_ni, opt_na, opt_ns, opt_M
 
 
-    
+def zip_csv(namelist:list, datalist:list, name="data"):
+    data_table = {}
+    for i in range(len(namelist)):
+        data_table[namelist[i]] = datalist[i] 
+    output = pd.DataFrame(data_table)
+    output.to_csv(name+'.csv')

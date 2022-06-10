@@ -13,15 +13,16 @@ class Vehicle:
         self.clock = 0
         if city.type_name == "Euclidean" or city.type_name == "Manhattan":    
             self.x, self.y = utils.generate_location(city)
+            # random position when idling
+            self.idle_position = self.x, self.y
         if city.type_name == "real-world":
             self.link, self.len = utils.generate_location(city)
+            self.idle_position = self.link, self.len
         # around 30 mph
         self.speed = city.max_v
         self.load = 0
         self.status = 2
         self.passenger = []
-        # random position when idling
-        self.idle_position = self.x, self.y
         # ordered list of passed nodes [..., cityNode1, cityNode2, cityNode3, ...]
         self.path1, self.path2 = [], []  
         # determine whether the pre-assigned route is finished "real-world"
