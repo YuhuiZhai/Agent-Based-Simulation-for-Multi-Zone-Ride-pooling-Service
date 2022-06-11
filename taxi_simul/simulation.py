@@ -1,9 +1,8 @@
-from cv2 import threshold
 import numpy as np
 import math
 import utils
 from city import City
-from fleet_taxi import Taxifleet
+from taxi_simul.fleet_taxi import Taxifleet
 from eventQueue import EventQueue
 from tqdm import tqdm
 from animation import Animation
@@ -283,8 +282,8 @@ class Simulation:
             print("unserved number: ", unserved)
         return 
 
-    def make_animation(self, compression = 100, fps=15):
+    def make_animation(self, compression = 100, fps=15, path=""):
             print("animation plotting")
             animation = Animation(self.city, self.fleet_info, self.passenger_info)
-            animation.plot(compression, fps)
+            animation.plot(compression, fps, path)
     

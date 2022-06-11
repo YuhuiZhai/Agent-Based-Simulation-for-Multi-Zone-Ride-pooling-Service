@@ -1,7 +1,6 @@
-
 import random 
 from city import City
-from simulation import Simulation
+from taxi_simul.simulation import Simulation
 
 random.seed(2)
 

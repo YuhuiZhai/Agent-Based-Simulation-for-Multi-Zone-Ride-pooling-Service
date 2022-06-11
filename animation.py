@@ -14,7 +14,7 @@ class Animation:
         self.fleet_info = fleet_info
         self.passenger_info = passenger_info
     
-    def plot(self, compression, fps):
+    def plot(self, compression, fps, path=""):
         fig, ax = plt.subplots()
         self.city.sketch()
         ln1, = plt.plot([], [], 'yo', markersize = 7)
@@ -57,4 +57,4 @@ class Animation:
             plt.ylabel("latitude")      
 
         writergif = PillowWriter(fps) 
-        animation.save("taxi.gif", writer=writergif)
+        animation.save(path + "/simulation.gif", writer=writergif)

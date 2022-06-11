@@ -1,10 +1,15 @@
-from cgitb import reset
-from os import link
+print("Importing library 1/4")
+from importlib.resources import path
+from tarfile import CompressionError
 from tkinter import *
-from xml.dom.NodeFilter import NodeFilter
-from simulation import Simulation
+from tokenize import String
+print("Importing library 2/4")
+from taxi_simul.simulation import Simulation
+print("Importing library 3/4")
 from city import City 
+print("Importing library 4/4")
 from tkinter import filedialog
+print("Welcome to simulation")
 root = Tk()
 root.title("Transit Simulation Demo")
 root.geometry('500x700')
@@ -20,7 +25,7 @@ Radiobutton(frame1, text="heterogeneous", variable=simul_type, value="heterogene
 frame2 = LabelFrame(root, text="Fleet info", padx=5, pady=5)
 frame2.pack(padx=5, pady=5)
 Label(frame2, text="Enter fleet size / fleet matrix: ").grid(row=0, column=0, sticky=W)
-e21 = Entry(frame2, width=5)
+e21 = Entry(frame2, width=10)
 e21.grid(row=0, column=1)
 def input_matrix(target_entry:Entry):
     top = Toplevel()
@@ -51,10 +56,10 @@ def input_matrix(target_entry:Entry):
             target_entry.insert(0, string)
             top.destroy()
             return
-        Button(top, text="save", command=output).grid(row=w+3, column=0, columnspan=2)
+        Button(top, text="Save", command=output, width=15).grid(row=w+3, column=0, columnspan=2)
         return 
-    Button(top, text="save", command=generate_matrix).grid(row=2, column=0, columnspan=2)
-b1 = Button(frame2, text="define fleet matrix", command=lambda:input_matrix(e21))
+    Button(top, text="Save", command=generate_matrix, width=15).grid(row=2, column=0, columnspan=2)
+b1 = Button(frame2, text="Define fleet matrix", command=lambda:input_matrix(e21), width=15)
 b1.grid(row=0, column=2)
 def disable(btns:list):
     for b in btns:
@@ -79,14 +84,14 @@ Radiobutton(frame2, text="no", variable=global_reallocation, value=0).grid(row=2
 frame3 = LabelFrame(root, text="Passengers info", padx=5, pady=5)
 frame3.pack(padx=5, pady=5)
 Label(frame3, text="Enter demand size / demand matrix: ").grid(row=0, column=0, sticky=W)
-e31 = Entry(frame3, width=5)
+e31 = Entry(frame3, width=10)
 e31.grid(row=0, column=1)
-b2 = Button(frame3, text="define demand matrix", command=lambda:input_matrix(e31))
+b2 = Button(frame3, text="Define demand matrix", command=lambda:input_matrix(e31))
 b2.grid(row=0, column=2)
 Label(frame3, text="Enter demand duration (hr): ").grid(row=1, column=0, sticky=W)
-e32 = Entry(frame3, width=5)
+e32 = Entry(frame3, width=10)
 e32.grid(row=1, column=1, sticky=E)
-Button(frame1, text="save", command=lambda:disable([b1, b2])).grid(row=3, column=0)
+Button(frame1, text="Save", command=lambda:disable([b1, b2]), width=15).grid(row=3, column=0)
 
 # Part of city parameter
 frame4 = LabelFrame(root, text="City info", padx=5, pady=5)
@@ -97,8 +102,11 @@ Label(frame4, text="Choose city type: ").grid(row=0, column=0, sticky=W)
 Radiobutton(frame4, text="Euclidean-space", variable=city_type, value="Euclidean").grid(row=1, column=0)
 Radiobutton(frame4, text="Manhattan-space", variable=city_type, value="Manhattan").grid(row=1, column=1)
 Radiobutton(frame4, text="Real-world", variable=city_type, value="real-world").grid(row=2, column=0)
-Button(frame4, text="Input link file", command=lambda:Input("link")).grid(row=2, column=1)
-Button(frame4, text="Input node file", command=lambda:Input("node")).grid(row=2, column=2)
+
+linkbtn = Button(frame4, text="Input link file", command=lambda:Input("link"), width=15)
+linkbtn.grid(row=2, column=1)
+nodebtn = Button(frame4, text="Input node file", command=lambda:Input("node"), width=15)
+nodebtn.grid(row=2, column=2)
 def Input(file_type:str):
     city_type.set("real-world")
     root.filename = filedialog.askopenfilename(
@@ -109,18 +117,22 @@ def Input(file_type:str):
     global nodefile
     if file_type =="link":
         linkfile = root.filename
+        filename = linkfile.split("/")[-1]
+        linkbtn.config(text="file: " + filename)
     elif file_type == "node":
         nodefile = root.filename
+        filename = nodefile.split("/")[-1]
+        nodebtn.config(text="file: " + filename)
     local_reallocation.set(0) 
     global_reallocation.set(0)
     return 
 
 
 Label(frame4, text="Enter city length (mile): ").grid(row=3, column=0, sticky=W)
-e41 = Entry(frame4, width=20)
+e41 = Entry(frame4, width=15)
 e41.grid(row=3, column=1, columnspan=5, sticky=E)
 Label(frame4, text="Enter maximum velocity (mph): ").grid(row=4, column=0, sticky=W)
-e42 = Entry(frame4, width=20)
+e42 = Entry(frame4, width=15)
 e42.grid(row=4, column=1, columnspan=5, sticky=E)
 
 frame5 = LabelFrame(root, text="Serving type", padx=5, pady=5)
@@ -154,8 +166,8 @@ def click_sf():
         elif serving_function.get() == "sharing serve":
             detour_percentage = float(e2.get()) if e2.get() != "" else -1
         top.destroy()
-    Button(top, text="save", command=save).grid(row=2, column=0, columnspan=2)
-Button(frame5, text="define parameters", command=click_sf).grid(row=2, column=0, columnspan=3)
+    Button(top, text="Save", command=save, width=15).grid(row=2, column=0, columnspan=2)
+Button(frame5, text="Define parameters", command=click_sf, width=15).grid(row=2, column=0, columnspan=3)
 
 
 elist = [e21, e31, e32, e41, e42]
@@ -202,7 +214,7 @@ def simulate():
     elif sf == "sharing serve":
         s.sharing_serve(res/3600, detour_percentage/100)
     Label(root, text="Simulation finished").pack()
-simul_button = Button(root, text="Run simulation", command=simulate)
+simul_button = Button(root, text="Run simulation", command=simulate, width=15)
 simul_button.pack()
 
 
@@ -212,6 +224,30 @@ def export():
     s.export(path=root.directory)
     Label(root, text="Simulation exported").pack()
     return 
-Button(root, text="export to csv", command=export).pack()
+Button(root, text="Export to csv", command=export, width=15).pack()
+
+def animate():
+    global savepath
+    savepath = ""
+    top = Toplevel()
+    Label(top, text="Enter compression factor: ").grid(row=0, column=0)
+    Label(top, text="Enter fps: ").grid(row=1, column=0)
+    e1 = Entry(top)
+    e1.grid(row=0, column=1)
+    e2 = Entry(top)
+    e2.grid(row=1, column=1)
+    Label(top, text="Choose address to save animation: ").grid(row=2, column=0)
+    comp = int(e1.get()) if e1.get() != "" else 50
+    fps = int(e2.get()) if e2.get() != "" else 15
+    def open():
+        global savepath
+        savepath = filedialog.askdirectory()
+        Button(top, text=savepath, command=open).grid(row=2, column=1)
+    def animate_helper():
+        s.make_animation(compression=comp, fps=fps, path=savepath)
+        Label(root, text="Animation is saved to " + savepath).pack()
+    Button(top, text="...", command=open, width=15).grid(row=2, column=1)
+    Button(top, text="Run animation", command=animate_helper, width=15).grid(row=3, column=0)
+Button(root, text="Make animation", command=animate, width=15).pack()
 
 root.mainloop()
