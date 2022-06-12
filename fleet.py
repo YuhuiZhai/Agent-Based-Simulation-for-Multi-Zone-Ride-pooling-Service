@@ -16,6 +16,8 @@ class Fleet:
 
     # change veh's status from status1 to status2 
     def changeVehStatus(self, status_request:tuple):
+        if status_request == None:
+            return 
         veh_id, status1, status2 = status_request
         if status1 == status2:
             return
@@ -46,3 +48,12 @@ class Fleet:
             self.changeVehStatus(status_request)
         self.clock += dt
     
+    # function for making animation
+    def sketch_helper(self):
+        sketch_table = []
+        for status in range(len(self.status_table)):
+            sketch_table.append([[], []])
+            for veh in self.vehs_group[status]:
+                sketch_table[status][0].append(veh.location()[0])
+                sketch_table[status][1].append(veh.location()[1])
+        return sketch_table

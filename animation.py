@@ -9,42 +9,46 @@ from matplotlib.animation import FuncAnimation
 from matplotlib.animation import PillowWriter
 
 class Animation:
-    def __init__(self, city:City, fleet_info:list, passenger_info:list):
+    def __init__(self, city:City, fleet_info:list, passenger_info:list, fleet_on = True, passenger_on = True):
         self.city = city
         self.fleet_info = fleet_info
         self.passenger_info = passenger_info
     
-    def plot(self, compression, fps, path=""):
+    # pattern is a tuple of (
+    #   status table {status : status name},
+    #   color table {status : status color}
+    #   shape e.g. '*'
+    # )
+    def plot(self, compression, fps, fleet_pattern:tuple,
+                passenger_pattern, path=""):
+        fleet_status, fleet_color, fleet_shape = fleet_pattern
+        passenger_status, passenger_color, passenger_shape = passenger_pattern
         fig, ax = plt.subplots()
         self.city.sketch()
-        ln1, = plt.plot([], [], 'yo', markersize = 7)
-        ln2, = plt.plot([], [], 'ro', markersize = 7)
-        ln3, = plt.plot([], [], 'go', markersize = 7)
-        ln4, = plt.plot([], [], 'k*', markersize = 10)
-        ln5, = plt.plot([], [], 'bv', markersize = 7)
-
-        a, s, i, inter = self.fleet_info[0]
-        p = self.passenger_info[0]
+        fleet_list, passenger_list = [], []
+        for i in range(len(self.fleet_info[0])):
+            ln, = plt.plot([], [], fleet_color[i]+fleet_shape, markersize = 7) 
+            fleet_list.append(ln)
+        for i in range(len(self.passenger_info[0])):
+            ln, = plt.plot([], [], passenger_color[i]+passenger_shape, markersize = 7) 
+            passenger_list.append(ln)
+        
         def update(frame):
-            a, s, i, inter = self.fleet_info[frame]   
-            p = self.passenger_info[frame]
-            ln1.set_data(a[0], a[1])
-            ln2.set_data(s[0], s[1])
-            ln3.set_data(i[0], i[1])
-            ln4.set_data(inter[0], inter[1])
-            ln5.set_data(p[0], p[1])
-            return ln1, ln2, ln3, ln4, ln5
+            for i in range(len(self.fleet_info[frame])):
+                fleet_list[i].set_data(self.fleet_info[frame][i])
+            for i in range(len(self.passenger_info[frame])):
+                passenger_list[i].set_data(self.passenger_info[frame][i])
+            return *fleet_list, *passenger_list
 
         animation = FuncAnimation(fig, update, blit=True, frames = range(0, len(self.fleet_info), compression))
         
         if self.city.type_name == "Euclidean" or self.city.type_name == "Manhattan":  
             plt.xlim(0, self.city.length)
             plt.ylim(0, self.city.length)
-            ax.text(5/6*self.city.length, 1/6*self.city.length, "in service", color = 'r',  fontsize = 10)
-            ax.text(5/6*self.city.length, 0.8/6*self.city.length, "assigned", color = 'y', fontsize = 10)
-            ax.text(5/6*self.city.length, 0.6/6*self.city.length, "idle", color = 'g', fontsize = 10)
-            ax.text(5/6*self.city.length, 0.4/6*self.city.length, "inter", color = 'k', fontsize = 10)
-            ax.text(5/6*self.city.length, 0.2/6*self.city.length, "passenger", color = 'b', fontsize = 10)
+            for i in range(len(self.fleet_info[0])):
+                ax.text(4.75/6*self.city.length, (0.3+i*0.3)/6*self.city.length, fleet_status[i], color = fleet_color[i], fontsize = 10)
+            for i in range(len(self.passenger_info[0])):
+                ax.text(4.75/6*self.city.length, (0.3+len(self.fleet_info[0])*0.3+i*0.3)/6*self.city.length, passenger_status[i], color = passenger_color[i], fontsize = 10)
             plt.xlabel("x (mile)")
             plt.ylabel("y (mile)")
 
@@ -57,4 +61,7 @@ class Animation:
             plt.ylabel("latitude")      
 
         writergif = PillowWriter(fps) 
-        animation.save(path + "/simulation.gif", writer=writergif)
+        if path == "":
+            animation.save("simulation.gif", writer=writergif)
+        else: 
+            animation.save(path + "/simulation.gif", writer=writergif)

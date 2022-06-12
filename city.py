@@ -57,6 +57,7 @@ class City:
         self.max_v = max_v
         self.origin = origin
         self.node_file, self.link_file = node_file, link_file
+        self.route = None
         if (self.type_name == ""):
             type = assign_type()
             while (type == None):
@@ -76,6 +77,9 @@ class City:
 
     def set_origin(self, new_origin:tuple):
         self.origin = new_origin
+
+    def add_route(self, route:list):
+        self.route = route
 
     def add_node(self, new_node:CityNode):
         self.num_node += 1
@@ -123,6 +127,15 @@ class City:
         return
 
     def sketch(self):
+        stopx, stopy = [], []
+        for stop in self.route:
+            stopx.append(stop[0])
+            stopy.append(stop[1])
+        plt.plot(stopx, stopy, 'mD')
+        for i in range(len(self.route)):
+            plt.plot([self.route[i-1][0], self.route[i][0]], [self.route[i-1][1], self.route[i][1]], 'c-')
+        
+
         if (self.type_name == "real-world"):
             for idx, key in enumerate(self.links):
                 link = self.links[key]

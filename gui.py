@@ -242,11 +242,12 @@ def animate():
     def open():
         global savepath
         savepath = filedialog.askdirectory()
-        Button(top, text=savepath, command=open).grid(row=2, column=1)
+        btn.config(text=savepath)
     def animate_helper():
         s.make_animation(compression=comp, fps=fps, path=savepath)
         Label(root, text="Animation is saved to " + savepath).pack()
-    Button(top, text="...", command=open, width=15).grid(row=2, column=1)
+    btn = Button(top, text="...", command=open)
+    btn.grid(row=2, column=1)
     Button(top, text="Run animation", command=animate_helper, width=15).grid(row=3, column=0)
 Button(root, text="Make animation", command=animate, width=15).pack()
 

@@ -235,13 +235,10 @@ class Taxifleet(Fleet):
     # function to return location of each status group
     def sketch_helper(self):
         # key is status, value is location list
-        sketch_table = {}
-        for status in self.status_table:
-            sketch_table[status] = [], []
+        sketch_table = []
+        for status in range(len(self.status_table)):
+            sketch_table.append([[], []])
             for veh in self.vehs_group[status]:
                 sketch_table[status][0].append(veh.location()[0])
                 sketch_table[status][1].append(veh.location()[1])
-        temp = []
-        for key in sketch_table:
-            temp.append(sketch_table[key])
-        return temp
+        return sketch_table

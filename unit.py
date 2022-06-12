@@ -7,6 +7,7 @@ class Unit:
     def __init__(self, id, city:City, init_status):
         self.id, self.city = id, city
         self.clock = 0
+        self.speed = city.max_v
         if city.type_name == "Euclidean" or city.type_name == "Manhattan":    
             self.x, self.y = utils.generate_location(city)
             self.idle_position = self.x, self.y
@@ -24,9 +25,9 @@ class Unit:
     def sign(self, num):
         return (num > 0) - (num < 0)
     
-    # move from current position to destination [x, y] using Euclidean space
+    # move from current position to destination (x, y) using Euclidean space
     # return true if the goal is reached
-    def move_Euclidean(self, dt:float, dxy:list):
+    def move_Euclidean(self, dt:float, dxy:tuple):
         dx, dy = dxy[0], dxy[1]
         if (self.x == dx and self.y == dy):
             return True
@@ -39,17 +40,18 @@ class Unit:
         else:
             xdir = self.sign(dx-self.x)
             ydir = self.sign(dy-self.y)
-            alpha = math.atan(abs(self.y-dy)/abs(self.x-dx))            
+            alpha = math.atan(abs(self.y-dy)/abs(self.x-dx))    
+            # print(alpha)        
             self.x += xdir*self.speed*dt*math.cos(alpha) 
             self.y += ydir*self.speed*dt*math.sin(alpha)
-            self.x = xdir*min(xdir*self.x, xdir*dx)
-            self.y = ydir*min(ydir*self.y, ydir*dy)
-            if (self.y == dy):
+            self.x = xdir*min(xdir*self.x, xdir*dx) if xdir != 0 else self.x
+            self.y = ydir*min(ydir*self.y, ydir*dy) if ydir != 0 else self.y
+            if (self.x == dx and self.y == dy):
                 return True
         return False
 
     # move from origin (x, y) to destination (x, y) using Manhattan space
-    def move_Manhattan(self, dt:float, dxy:list):
+    def move_Manhattan(self, dt:float, dxy:tuple):
             dx, dy = dxy[0], dxy[1]
             xmove = random.randint(0, 1)
             # xmove = 1

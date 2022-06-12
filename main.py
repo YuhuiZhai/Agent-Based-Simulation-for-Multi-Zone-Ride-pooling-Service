@@ -1,16 +1,15 @@
-import random 
-from city import City
+import random
 from taxi_simul.simulation import Simulation
-
-random.seed(2)
+from bus_simul.simulation_bus import Simulation_bus
+from city import City
 
 # city = City("real-world", node_file="node.xls", link_file="link.xls")
 # city.read()
-
-city = City()
+random.seed(2)
+# city = City()
 # simple assignment part
-simulation1 = Simulation(city, fleet_size=50, T=1, lmd=50)
-simulation1.simple_serve(res=1/60/60)
+# simulation1 = Simulation(city, fleet_size=50, T=1, lmd=50)
+# simulation1.simple_serve(res=1/60/60)
 # simulation1.error()
 # simulation1.export(name="simple", path="C:/22 Summer/week 4")
 
@@ -23,7 +22,7 @@ simulation1.simple_serve(res=1/60/60)
 # simulation1.export("share")
 
 # animation part
-simulation1.make_animation(compression=25, fps=15)
+# simulation1.make_animation(compression=25, fps=15)
 
 # hetergeneous part
 # city = City(length=3.6)
@@ -51,3 +50,9 @@ simulation1.make_animation(compression=25, fps=15)
 
 # utils.zip_csv(["ta", "ts", "na", "ns", "ni"], [ta, ts, na, ns, ni], name="batch servre analysis")
 # utils.zip_csv(["ta"], [ta], name="pax_analysis")
+
+# random.seed(2)
+city = City(length=4)
+simulation = Simulation_bus(city, T=2, lmd=200, fleet_size=5)
+simulation.Route1(res=1/3600)
+simulation.make_animation(compression=40, fps=15)

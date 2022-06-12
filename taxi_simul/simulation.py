@@ -52,7 +52,7 @@ class Simulation:
             self.fleet[key].move(res)
             self.events[key].move(res)
 
-    def update(self, res):
+    def update(self, res:float):
         if self.simu_type == "heterogeneous" and self.gr and int(self.clock/res) % 200 == 0:
             self.global_reallocation()
         total_na, total_ns, total_ni, total_ninter = 0, 0, 0, 0
@@ -77,17 +77,7 @@ class Simulation:
         self.ni.append(total_ni)
         self.ninter.append(total_ninter)
         self.fleet_info.append([[total_ax, total_ay], [total_sx, total_sy], [total_ix, total_iy], [total_interx, total_intery]])
-        self.passenger_info.append([total_px, total_py])
-        
-    # def reset(self):
-    #     self.timeline = None
-    #     self.na, self.ns, self.ni, self.p = [], [], [], []
-    #     self.fleet_info, self.passenger_info = [], []
-    #     if self.simu_type == "homogeneous":
-    #         self.fleet = [Fleet(self.fleet_size, self.city)]
-    #         self.events = [EventQueue(self.city, self.T, self.lmd)]
-    #     elif self.simu_type == "heterogeneous":
-    #         self.hetero_init()
+        self.passenger_info.append([[total_px, total_py]])
 
     def global_reallocation(self):
         if self.simu_type == "homogeneous":
@@ -285,5 +275,13 @@ class Simulation:
     def make_animation(self, compression = 100, fps=15, path=""):
             print("animation plotting")
             animation = Animation(self.city, self.fleet_info, self.passenger_info)
-            animation.plot(compression, fps, path)
+            fleet_pattern = ({0:"assigned", 1:"in_service", 2:"idle", 3:"interchanged"},
+                             {0:'y', 1:'r', 2:'g', 3:'k'},
+                             'o'    
+                             )
+            passenger_pattern = ({0:"Passenger"}, 
+                                 {0:'b'},
+                                 'v'
+                                )
+            animation.plot(compression, fps, fleet_pattern, passenger_pattern, path)
     
