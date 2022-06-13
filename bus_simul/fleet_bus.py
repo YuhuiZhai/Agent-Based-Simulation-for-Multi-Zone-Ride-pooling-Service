@@ -17,5 +17,9 @@ class Busfleet(Fleet):
     def addRoute(self, route:list):
         for veh_id in self.vehicles:
             veh = self.vehicles[veh_id]
-            veh.route = route
+            path = []
+            for stop_id in route:
+                stop = self.city.stoplist[stop_id]
+                path.append(stop.location)
+            veh.route = path
     

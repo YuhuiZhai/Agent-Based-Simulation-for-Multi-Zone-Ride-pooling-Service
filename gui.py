@@ -1,8 +1,5 @@
 print("Importing library 1/4")
-from importlib.resources import path
-from tarfile import CompressionError
 from tkinter import *
-from tokenize import String
 print("Importing library 2/4")
 from taxi_simul.simulation import Simulation
 print("Importing library 3/4")
@@ -61,12 +58,17 @@ def input_matrix(target_entry:Entry):
     Button(top, text="Save", command=generate_matrix, width=15).grid(row=2, column=0, columnspan=2)
 b1 = Button(frame2, text="Define fleet matrix", command=lambda:input_matrix(e21), width=15)
 b1.grid(row=0, column=2)
-def disable(btns:list):
-    for b in btns:
-        if simul_type.get() == "homogeneous":
-            b.config(state="disabled")
-        else:
-            b.config(state="normal")
+def disable(homo:list, hetero:list):
+    if simul_type.get() == "homogeneous":
+        for i in homo:
+            i.config(state="disabled") 
+        for i in hetero:
+            i.config(state="normal")   
+    else:
+        for i in homo:
+            i.config(state="normal") 
+        for i in hetero:
+            i.config(state="disabled")
 
 local_reallocation = IntVar()
 local_reallocation.set(1)
@@ -77,8 +79,10 @@ Radiobutton(frame2, text="no", variable=local_reallocation, value=0).grid(row=1,
 global_reallocation = IntVar()
 global_reallocation.set(0)
 Label(frame2, text="Allow global reallocation: ").grid(row=2, column=0, sticky=W)
-Radiobutton(frame2, text="yes", variable=global_reallocation, value=1).grid(row=2, column=1)
-Radiobutton(frame2, text="no", variable=global_reallocation, value=0).grid(row=2, column=2)
+r21 = Radiobutton(frame2, text="yes", variable=global_reallocation, value=1)
+r21.grid(row=2, column=1)
+r22 = Radiobutton(frame2, text="no", variable=global_reallocation, value=0)
+r22.grid(row=2, column=2)
 
 # Part of passenger parameter
 frame3 = LabelFrame(root, text="Passengers info", padx=5, pady=5)
@@ -91,7 +95,6 @@ b2.grid(row=0, column=2)
 Label(frame3, text="Enter demand duration (hr): ").grid(row=1, column=0, sticky=W)
 e32 = Entry(frame3, width=10)
 e32.grid(row=1, column=1, sticky=E)
-Button(frame1, text="Save", command=lambda:disable([b1, b2]), width=15).grid(row=3, column=0)
 
 # Part of city parameter
 frame4 = LabelFrame(root, text="City info", padx=5, pady=5)
@@ -141,8 +144,11 @@ Label(frame5, text="Choose your serving type: ").grid(row=0, column=0, sticky=E)
 serving_function = StringVar()
 serving_function.set("simple serve")
 Radiobutton(frame5, text="simple serve", variable=serving_function, value="simple serve").grid(row=1, column=0)
-Radiobutton(frame5, text="batch serve", variable=serving_function, value="batch serve").grid(row=1, column=1)
-Radiobutton(frame5, text="sharing serve", variable=serving_function, value="sharing serve").grid(row=1, column=2)
+r51 = Radiobutton(frame5, text="batch serve", variable=serving_function, value="batch serve")
+r51.grid(row=1, column=1)
+r52 = Radiobutton(frame5, text="sharing serve", variable=serving_function, value="sharing serve")
+r52.grid(row=1, column=2)
+Button(frame1, text="Save", command=lambda:disable([b1, b2, r21, r22], [r51, r52]), width=15).grid(row=3, column=0)
 def click_sf():
     top = Toplevel()
     Label(top, text="Enter resolution (s): ").grid(row=0, column=0)
@@ -239,16 +245,22 @@ def animate():
     Label(top, text="Choose address to save animation: ").grid(row=2, column=0)
     comp = int(e1.get()) if e1.get() != "" else 50
     fps = int(e2.get()) if e2.get() != "" else 15
+    
+    Label(top, text="Enter name of animation: ").grid(row=3, column=0)
+    e3 = Entry(top, width=10)
+    e3.grid(row=3, column=1)
+    Label(top, text=".gif").grid(row=3, column=2)
+
     def open():
         global savepath
         savepath = filedialog.askdirectory()
         btn.config(text=savepath)
     def animate_helper():
-        s.make_animation(compression=comp, fps=fps, path=savepath)
-        Label(root, text="Animation is saved to " + savepath).pack()
+        name = e3.get() if e3.get() != "" else "simulation"
+        s.make_animation(compression=comp, fps=fps, name=name, path=savepath)
+        Label(root, text = name + ".gif is saved to " + savepath).pack()
     btn = Button(top, text="...", command=open)
     btn.grid(row=2, column=1)
-    Button(top, text="Run animation", command=animate_helper, width=15).grid(row=3, column=0)
+    Button(top, text="Run animation", command=animate_helper, width=15).grid(row=4, column=0, columnspan=2)
 Button(root, text="Make animation", command=animate, width=15).pack()
-
 root.mainloop()

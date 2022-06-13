@@ -31,7 +31,6 @@ class EventQueue:
             temp_passenger_id += 1
             event = Event(temp_passenger.t_start, 'appear', None, temp_passenger)
             self.insert(event)
-
     
     def move(self, dt):
         self.clock += dt

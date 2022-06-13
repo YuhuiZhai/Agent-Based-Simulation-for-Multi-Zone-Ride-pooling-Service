@@ -38,7 +38,7 @@ class Taxifleet(Fleet):
             return
         if not decision:
             for idle_veh in self.vehs_group[2]:
-                idle_veh.idle_postion = utils.generate_location()
+                idle_veh.idle_postion = utils.generate_location(self.city)
             return 
         valid_vehs = {}
         idx1 = 0

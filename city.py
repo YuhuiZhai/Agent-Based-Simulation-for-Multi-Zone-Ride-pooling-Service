@@ -3,6 +3,8 @@ import heapq as hq
 import utils 
 from tqdm import tqdm
 import xlrd
+from collections import deque
+import math
 
 def assign_type():
         table = {"1":"Euclidean", "2":"Manhattan", "3":"real-world", 
@@ -14,6 +16,24 @@ def assign_type():
         else:
             print("Wrong input, please try again")
             return 
+class Stop:
+    def __init__(self, id, location:tuple):
+        self.id, self.location = id, location
+        self.queue = deque()
+    
+    def inqueue(self, unit):
+        self.queue.append(unit)
+    
+    def dequeue(self):
+        return self.queue.pop()
+    
+    # function to release 
+    def release(self, num):
+        count, release_list = 0, set()
+        while self.queue and count < num:
+            release_list.add(self.dequeue())
+            num += 1
+        return release_list
 
 class CityNode:
     def __init__(self, id, x, y):
@@ -57,7 +77,8 @@ class City:
         self.max_v = max_v
         self.origin = origin
         self.node_file, self.link_file = node_file, link_file
-        self.route = None
+        self.stoplist = []
+        self.route = []
         if (self.type_name == ""):
             type = assign_type()
             while (type == None):
@@ -77,6 +98,22 @@ class City:
 
     def set_origin(self, new_origin:tuple):
         self.origin = new_origin
+
+    def add_stops(self, stop_loc:list):
+        for i, stopxy in enumerate(stop_loc):
+            self.stoplist.append(Stop(i, stopxy))
+
+    def nearest_stop(self, loc:tuple):
+        min_dist = math.inf
+        opt_stop = None
+        x, y = loc
+        for stop in self.stoplist:
+            stopx, stopy = stop.location
+            dist = ((stopx - x)**2 + (stopy - y)**2)**(0.5)
+            if dist < min_dist:
+                min_dist = dist
+                opt_stop = stop
+        return min_dist, opt_stop
 
     def add_route(self, route:list):
         self.route = route
@@ -127,16 +164,18 @@ class City:
         return
 
     def sketch(self):
-        stopx, stopy = [], []
-        for stop in self.route:
-            stopx.append(stop[0])
-            stopy.append(stop[1])
-        plt.plot(stopx, stopy, 'mD')
-        for i in range(len(self.route)):
-            plt.plot([self.route[i-1][0], self.route[i][0]], [self.route[i-1][1], self.route[i][1]], 'c-')
-        
-
-        if (self.type_name == "real-world"):
+        if self.type_name != "real-world":
+            stopx, stopy = [], []
+            for stop in self.stoplist:
+                stopx.append(stop.location[0])
+                stopy.append(stop.location[1])
+            plt.plot(stopx, stopy, 'mD')
+            for i in range(len(self.route)):
+                prev_id, curr_id = self.route[i-1], self.route[i]
+                prev_stop, curr_stop = self.stoplist[prev_id], self.stoplist[curr_id]
+                plt.plot([prev_stop.location[0], curr_stop.location[0]], [prev_stop.location[1], curr_stop.location[1]], 'c-')
+            
+        else:
             for idx, key in enumerate(self.links):
                 link = self.links[key]
                 plt.plot([link.ox, link.dx], [link.oy, link.dy], color = 'k') 

@@ -20,7 +20,7 @@ class Animation:
     #   shape e.g. '*'
     # )
     def plot(self, compression, fps, fleet_pattern:tuple,
-                passenger_pattern, path=""):
+                passenger_pattern, name="simulation", path=""):
         fleet_status, fleet_color, fleet_shape = fleet_pattern
         passenger_status, passenger_color, passenger_shape = passenger_pattern
         fig, ax = plt.subplots()
@@ -62,6 +62,6 @@ class Animation:
 
         writergif = PillowWriter(fps) 
         if path == "":
-            animation.save("simulation.gif", writer=writergif)
+            animation.save(name + ".gif", writer=writergif)
         else: 
-            animation.save(path + "/simulation.gif", writer=writergif)
+            animation.save(path + "/" + name + ".gif", writer=writergif)

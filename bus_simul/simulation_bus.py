@@ -33,19 +33,20 @@ class Simulation_bus:
         total_px, total_py = [], []
         for key in self.fleet:
             [sx, sy], [dx, dy] = self.fleet[key].sketch_helper()
-            # [px, py] = self.events[key].sketch_helper()
+            [px, py] = self.events[key].sketch_helper()
             total_sx += sx; total_sy += sy; total_dx += dx; total_dy += dy
-            # total_px += px; total_py += py
+            total_px += px; total_py += py
         self.fleet_info.append([[total_sx, total_sy], [total_dx, total_dy]])
         self.passenger_info.append([[total_px, total_py]])
 
     def Route1(self, res:float):
-        route1 = [(1,1), (1.5,1.5), (1.5,2.5), (1,3), (1.5, 2.5), (2.5, 2.5), 
-                (3, 3), (2.5, 2.5), (2.5, 1.5), (3, 1), (2.5, 1.5), (1.5, 1.5)]
-        self.city.add_route(route1)
+        stop_loc= [(1,1), (1.5,1.5), (1.5,2.5), (1,3), (2.5, 2.5), (3, 3), (2.5, 1.5), (3, 1)]
+        route = [0, 1, 2, 3, 2, 4, 5, 4, 6, 7, 6, 1]
+        self.city.add_stops(stop_loc)
+        self.city.add_route(route)
             
         for key in self.fleet:
-            self.fleet[key].addRoute(route1)
+            self.fleet[key].addRoute(route)
         
         self.timeline = np.arange(0, self.T, res)
         for t in tqdm(self.timeline, desc="Route 1"):

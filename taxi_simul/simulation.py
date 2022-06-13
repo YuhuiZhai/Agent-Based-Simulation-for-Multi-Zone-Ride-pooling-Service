@@ -88,7 +88,7 @@ class Simulation:
         supply_sum, demand_sum = 0, 0
         for key in self.fleet:
             subfleet, subevent = self.fleet[key], self.events[key]
-            ni, lmdR = subfleet.idle_num, subevent.lmd 
+            ni, lmdR = len(subfleet.vehs_group[2]), subevent.lmd 
             if self.threshold_map != None: 
                 opt_ni = self.threshold_map[int(int(key)/len(self.threshold_map))][int(int(key)%len(self.threshold_map))]
             else: opt_ni = math.ceil(utils.optimal(subfleet.city, lmdR)[1])
@@ -272,7 +272,7 @@ class Simulation:
             print("unserved number: ", unserved)
         return 
 
-    def make_animation(self, compression = 100, fps=15, path=""):
+    def make_animation(self, compression = 100, fps=15, name="simulation", path=""):
             print("animation plotting")
             animation = Animation(self.city, self.fleet_info, self.passenger_info)
             fleet_pattern = ({0:"assigned", 1:"in_service", 2:"idle", 3:"interchanged"},
@@ -283,5 +283,7 @@ class Simulation:
                                  {0:'b'},
                                  'v'
                                 )
-            animation.plot(compression, fps, fleet_pattern, passenger_pattern, path)
+            if name == "":
+                animation.plot(compression, fps, fleet_pattern, passenger_pattern, "simulation", path)
+            else: animation.plot(compression, fps, fleet_pattern, passenger_pattern, name, path)
     

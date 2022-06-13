@@ -11,7 +11,7 @@ class Bus(Unit):
         self.speed = city.max_v
         self.next_sta = 0
         self.waiting_time = tau
-        self.capacity = math.inf
+        self.capacity, self.passengers = math.inf, set()
         self.count = 0
 
     def move(self, dt):
