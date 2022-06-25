@@ -1,10 +1,5 @@
-from multiprocessing import Event
-import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
 from city import City
-from fleet import Fleet
-from eventQueue import EventQueue
 from matplotlib.animation import FuncAnimation
 from matplotlib.animation import PillowWriter
 

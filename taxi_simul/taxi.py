@@ -1,3 +1,4 @@
+from urllib import request
 from passenger import Passenger
 from city import City
 from unit import Unit
@@ -51,17 +52,20 @@ class Taxi(Unit):
         self.passenger.insert(0, passenger)
     
     def pick_up(self):
-        self.passenger[0].status = "picked up"
+        self.passenger[0].status = 2
         self.passenger[0].t_s = self.clock
 
     def release(self):
         if self.path2[0][1] == 2:
+            self.passenger[0].status = 3
+            self.passenger[0].t_end = self.clock
             self.passenger.pop(0)
         self.path2.pop(0)
         self.load -= 1
         
     def assign(self, passenger:Passenger):
         self.add(passenger)
+        passenger.status = 1
         self.freq += 1
         status_request = self.changeStatusTo(0)
         return status_request
@@ -72,6 +76,8 @@ class Taxi(Unit):
         return status_request
 
     def idle(self):
+        self.passenger[0].status = 3
+        self.passenger[0].t_end = self.clock
         self.passenger.pop(0)
         self.load -= 1
         status_request = self.changeStatusTo(2)
@@ -85,6 +91,15 @@ class Taxi(Unit):
         status_request = self.changeStatusTo(2)
         return status_request
 
+    # swap with other vehicle
+    def swap(self, veh):
+        temp1, temp2, temp3, temp4, temp5 = self.passenger, self.path1, self.path2, self.start1, self.load
+        self.passenger, self.path1, self.path2, self.start1, self.load = veh.passenger, veh.path1, veh.path2, veh.start1, veh.load
+        veh.passenger, veh.path1, veh.path2, veh.start1, veh.load = temp1, temp2, temp3, temp4, temp5
+        status1, status2 = self.status, veh.status
+        request1, request2 = self.changeStatusTo(status2), veh.changeStatusTo(status1)
+        return (request1, request2)
+        
     def idle_pos(self):
         x, y = 0, 0
         x = self.even_space*round(self.x / self.even_space)

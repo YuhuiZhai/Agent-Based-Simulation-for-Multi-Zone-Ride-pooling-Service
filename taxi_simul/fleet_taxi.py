@@ -32,6 +32,32 @@ class Taxifleet(Fleet):
             sent_veh.idle_position = utils.generate_location(fleet.city)
             status_request = sent_veh.interchanging()
             fleet.changeVehStatus(status_request)
+    
+    def swap(self):
+        inf = 4000
+        assigned_vehs = [a for a in self.vehs_group[0]]
+        idle_vehs = [i for i in self.vehs_group[2]]
+        
+        weight_table = inf * np.ones((len(assigned_vehs), len(idle_vehs)))
+        for i, a_veh in enumerate(assigned_vehs):
+            a_pax = a_veh.passenger[0]
+            dist1 = self.dist(a_veh, a_pax, 1)
+            for j, i_veh in enumerate(idle_vehs):
+                dist2 = self.dist(i_veh, a_pax, 1)
+                if  dist2 >= dist1:
+                    continue
+                weight_table[i, j] = dist2
+        row, col = linear_sum_assignment(weight_table)
+        for i in range(len(row)):
+            row_idx, col_idx = row[i], col[i]
+            if weight_table[row_idx, col_idx] == inf:
+                continue
+            av, iv = assigned_vehs[row_idx], idle_vehs[col_idx]
+            (r1, r2) = av.swap(iv) 
+            self.changeVehStatus(r1)
+            self.changeVehStatus(r2)
+        return 
+
 
     def local_reallocation(self, decision=True):
         if (self.city.type_name == "real-world"):
@@ -139,7 +165,7 @@ class Taxifleet(Fleet):
             dist_o = self.detour_dist(O, D, A)
             # destination detour 
             dist_d = self.detour_dist(A, D, B)
-            if dist_d + dist_o <= detour_percent * self.dist(in_service_veh, in_service_veh.passenger[0], 2):
+            if dist_d + dist_o <= detour_percent/100 * self.dist(in_service_veh, in_service_veh.passenger[0], 2):
                 if (dist_d + dist_o) < min_dist:
                     min_dist = dist_d + dist_o
                     opt_veh = in_service_veh
@@ -149,7 +175,7 @@ class Taxifleet(Fleet):
     def simple_serve(self, passenger:Passenger):
         min_dist, opt_veh = self.best_match_i(passenger)
         if opt_veh is None:
-            passenger.status = "unserved"
+            passenger.status = -1
             self.unserved_num += 1
             return False   
         status_request = opt_veh.assign(passenger)
@@ -162,17 +188,19 @@ class Taxifleet(Fleet):
         min_dist_i, opt_veh_i = self.best_match_i(passenger)
         min_dist_s, opt_veh_s = self.best_match_s(passenger, detour_percent)
         if (opt_veh_i == None and opt_veh_s == None):
-            passenger.status = "unserved"
+            passenger.status = -1 
             self.unserved_num += 1
             return False
         elif (opt_veh_i == None):
             opt_veh_s.add(passenger)
+            passenger.isShared()
         elif (opt_veh_s == None):
             status_request = opt_veh_i.assign(passenger)
             self.changeVehStatus(status_request)
         else:
             if (min_dist_s <= min_dist_i):
                 opt_veh_s.add(passenger)
+                passenger.isShared()
             else:
                 status_request = opt_veh_i.assign(passenger)
                 self.changeVehStatus(status_request)
@@ -180,7 +208,7 @@ class Taxifleet(Fleet):
         return True
 
     # batching assignment to serve a group of passenger 
-    def batch_serve(self, passengers:list):
+    def batch_serve(self, passengers:list, r=math.inf):
         inf = 4000
         # bi direction map between nparray idx and veh
         valid_vehs = {}
@@ -193,9 +221,9 @@ class Taxifleet(Fleet):
         valid_paxs = {}
         for idx2, pax in enumerate(passengers):
             for idle_veh in self.vehs_group[2]:
-                dist = self.dist(idle_veh, pax, 3)
+                dist = self.dist(idle_veh, pax, 1)
                 # if there is no connecting path, the weight is still inf
-                if dist == -1:
+                if dist == -1 or dist > r:
                     continue
                 weight_table[idx2, valid_vehs[idle_veh]] = dist          
             valid_paxs[idx2], valid_paxs[pax] = pax, idx2
@@ -211,12 +239,13 @@ class Taxifleet(Fleet):
             self.changeVehStatus(status_request)
             served_num += 1
             decision_table[valid_paxs[opt_pax]] = 1
+        unserved = []    
         for i, pax in enumerate(passengers):
             if not decision_table[i]:
-                pax.status = "unserved"
-        self.unserved_num += len(passengers) - served_num
-        self.served_num += served_num
-        return
+                unserved.append(pax)
+        # self.unserved_num += len(passengers) - served_num
+        # self.served_num += served_num
+        return unserved
 
     # function to return total driving distance, assigned time, inservice time
     def homo_info(self):
