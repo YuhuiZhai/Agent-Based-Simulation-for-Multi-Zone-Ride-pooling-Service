@@ -3,15 +3,21 @@ from taxi_simul.simulation import Simulation
 from bus_simul.simulation_bus import Simulation_bus
 from city import City
 import xlsxwriter as xw
-
+import utils
+import numpy as np
 # city = City("real-world", node_file="node.xls", link_file="link.xls")
 # city.read()
 random.seed(2)
-# city = City()
-# s = Simulation(city, fleet_size=70, lmd=300, T=10)
+city = City()
+s = Simulation(city, fleet_size=20, lmd=50, T=10)
+s.simple_serve(res=1/3600)
+s.make_animation(compression=20)
+
+# print(s.passenger_data()[1])
+# print(s.passenger_data()[2])
+# s.make_animation(compression=30)
+# # s.export()
 # s1, s2 = s.status1, s.status2
-# print(s.opt_data())
-# print(s.error())
 # workbook = xw.Workbook("double status.xlsx")
 # worksheet1 = workbook.add_worksheet(name="positive status")
 # worksheet2 = workbook.add_worksheet(name="negative status")
@@ -67,61 +73,62 @@ random.seed(2)
 # workbook.close()
 
 # city = City(type_name="Manhattan")
-# f = 70
-# l = 300
-# max_detour = 60
-# workbook = xw.Workbook("M{}_lmd{}_detour.xlsx".format(f, l))
-# worksheet1 = workbook.add_worksheet()
+# f = 30
+# l = 50
+# max_detour = 1
+# # max_batch = 60
+# workbook = xw.Workbook("M{}_lmd{}_detour{}.xlsx".format(f, l, max_detour))
+# worksheet1 = workbook.add_worksheet("1")
+# worksheet2 = workbook.add_worksheet("2")
 # totalt1, totalt2, totalavg = [], [], []
-# for i in range(1, max_detour+1):
-#     s = Simulation(city, fleet_size=f, T=7, lmd=l)
-#     s.sharing_serve(res=1/60/60,detour_percentage=i)
-#     t1, t2, avg = s.passenger_data()
+# mid1s, mid2s, mid3s = [], [], []
+# avgtas = []
+# for i in np.arange(0, max_detour, 0.05):
+#     random.seed(2)
+#     s = Simulation(city, fleet_size=f, T=10, lmd=l)
+#     s.sharing_serve(res=1/3600, detour_dist=i)
+#     (t1, t2, t3), (mid1, mid2, mid3) = s.passenger_data()[1], s.passenger_data()[2]
 #     totalt1.append(t1)
 #     totalt2.append(t2)
-#     totalavg.append(avg)
+#     totalavg.append(t3)
+#     mid1s.append(mid1)
+#     mid2s.append(mid2)
+#     mid3s.append(mid3)
 # worksheet1.write(0, 0, "detour percentage")
 # worksheet1.write(0, 1, "avg idle t")
 # worksheet1.write(0, 2, "avg shared t")
 # worksheet1.write(0, 3, "avg combined t")
+# worksheet2.write(0, 0, "detour percentage")
+# worksheet2.write(0, 1, "mid idle t")
+# worksheet2.write(0, 2, "mid shared t")
+# worksheet2.write(0, 3, "mid combined t")
 
 # for i in range(len(totalt1)):
-#     worksheet1.write(i+1, 0, i+1)
+#     worksheet1.write(i+1, 0, i)
 #     worksheet1.write(i+1, 1, totalt1[i])
 #     worksheet1.write(i+1, 2, totalt2[i])
 #     worksheet1.write(i+1, 3, totalavg[i])
+
+# for i in range(len(mid1s)):
+#     worksheet2.write(i+1, 0, i)
+#     worksheet2.write(i+1, 1, mid1s[i])
+#     worksheet2.write(i+1, 2, mid2s[i])
+#     worksheet2.write(i+1, 3, mid3s[i])
 # workbook.close()
 
-
+# random.seed(2)
 # city = City(type_name="Manhattan")
-# f = 70
-# l = 300
+# f = 200
+# l = 1000
 # s = Simulation(city, fleet_size=f, T=10, lmd=l)
-# s.sharing_serve(res=1/60/60, detour_percentage=10)
-# (s1, s2, s3), (t1, t2, t3) = s.passenger_data()
-
-# def func(l:list, dx:float):
-#     l.sort()
-#     max_range = l[-1] - l[0] 
-#     left = 0
-#     curr = 0
-#     distri = []
-#     while curr < len(l)-1:
-#         count = 0
-#         while l[curr] <= left:
-#             count += 1
-#             curr += 1
-#         distri.append((left, left+dx, count))
-#         left += dx
-#     return distri
-# dx = 0.5/60
-# distri1, distri2, distri3 = func(s1, dx), func(s2, dx), func(s2, dx)
-
-
-# workbook = xw.Workbook("M{}_lmd{}_freq.xlsx".format(f, l))
-# worksheet1 = workbook.add_worksheet("Idle ta")
-# worksheet2 = workbook.add_worksheet("Shared ta")
-# worksheet3 = workbook.add_worksheet("Total ta")
+# s.sharing_serve(res=1/60/60, detour_dist=0.5)
+# (s1, s2, s3), (t1, t2, t3), (mid1, mid2, mid3) = s.passenger_data()
+# dx = 5*1/3600
+# distri1, distri2, distri3 = utils.func(s1, dx), utils.func(s2, dx), utils.func(s3, dx)
+# workbook1 = xw.Workbook("M{}_lmd{}_freq.xlsx".format(f, l))
+# worksheet1 = workbook1.add_worksheet("Idle ta")
+# worksheet2 = workbook1.add_worksheet("Shared ta")
+# worksheet3 = workbook1.add_worksheet("Total ta")
 # worksheet1.write(0, 0, "Interval of ta")
 # worksheet1.write(0, 1, "Idle ta ")
 # worksheet2.write(0, 0, "Interval of ta")
@@ -137,4 +144,27 @@ random.seed(2)
 # for i in range(len(distri3)):
 #     worksheet3.write(i+1, 0, distri3[i][0])
 #     worksheet3.write(i+1, 1, distri3[i][2])
-# workbook.close()
+# workbook1.close()
+# workbook2 = xw.Workbook("M{}_lmd{}_distirbution.xlsx".format(f, l))
+# worksheet1 = workbook2.add_worksheet("Idle ta")
+# worksheet2 = workbook2.add_worksheet("Shared ta")
+# worksheet3 = workbook2.add_worksheet("Total ta")
+# worksheet1.write(0, 0, "idx")
+# worksheet1.write(0, 1, "Idle ta ")
+# worksheet2.write(0, 0, "idx")
+# worksheet2.write(0, 1, "Shared ta ")
+# worksheet3.write(0, 0, "idx")
+# worksheet3.write(0, 1, "Total ta ")
+# s1.sort()
+# s2.sort()
+# s3.sort()
+# for i in range(len(s1)):
+#     worksheet1.write(i+1, 0, i+1)
+#     worksheet1.write(i+1, 1, s1[i])
+# for i in range(len(s2)):
+#     worksheet2.write(i+1, 0, i+1)
+#     worksheet2.write(i+1, 1, s2[i])
+# for i in range(len(s3)):
+#     worksheet3.write(i+1, 0, i+1)
+#     worksheet3.write(i+1, 1, s3[i])
+# workbook2.close()

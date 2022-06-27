@@ -3,6 +3,7 @@ from city import City
 from city import CityLink
 import math
 import random
+
 class Unit:
     def __init__(self, id, city:City, init_status):
         self.id, self.city = id, city
@@ -53,8 +54,8 @@ class Unit:
     # move from origin (x, y) to destination (x, y) using Manhattan space
     def move_Manhattan(self, dt:float, dxy:tuple):
             dx, dy = dxy[0], dxy[1]
-            xmove = random.randint(0, 1)
-            # xmove = 1
+            # xmove = random.randint(0, 1)
+            xmove = 1
             ymove = 1 - xmove
             if (self.x == dx):
                 xmove, ymove = 0, 1

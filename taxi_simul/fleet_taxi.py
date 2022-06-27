@@ -152,7 +152,8 @@ class Taxifleet(Fleet):
         return min_dist, opt_veh
 
     # find optimal match of service vehicle and passenger based on distance
-    def best_match_s(self, passenger:Passenger, detour_percent:float):
+    # def best_match_s(self, passenger:Passenger, detour_percent:float):
+    def best_match_s(self, passenger:Passenger, detour_dist:float):
         min_dist = math.inf
         opt_veh = None
         A, B = passenger.location()
@@ -165,9 +166,13 @@ class Taxifleet(Fleet):
             dist_o = self.detour_dist(O, D, A)
             # destination detour 
             dist_d = self.detour_dist(A, D, B)
-            if dist_d + dist_o <= detour_percent/100 * self.dist(in_service_veh, in_service_veh.passenger[0], 2):
+            # if (dist_d + dist_o) <= detour_percent/100 * self.dist(in_service_veh, in_service_veh.passenger[0], 2):
+            if (dist_d + dist_o) <= detour_dist:
                 if (dist_d + dist_o) < min_dist:
+
+                    # possible bug
                     min_dist = dist_d + dist_o
+                    
                     opt_veh = in_service_veh
         return min_dist, opt_veh
 

@@ -164,15 +164,16 @@ class Simulation:
             self.move(res)
         return 
 
-    def sharing_serve(self, res:float, detour_percentage:float):
+    # def sharing_serve(self, res:float, detour_percentage:float):
+    def sharing_serve(self, res:float, detour_dist:float):
         prev = 0
         self.timeline = np.arange(0, self.T, res)
         for t in tqdm(self.timeline, desc="sharing_serve loading"):
+            self.update(res)
             for key in self.fleet:
-                self.update(res)
                 p_id, p = self.events[key].head()
                 while (not self.events[key].empty() and p.t_start < t):
-                    self.fleet[key].sharing_serve(p, detour_percentage)
+                    self.fleet[key].sharing_serve(p, detour_dist)
                     prev += 1
                     self.events[key].dequeue()
                     p_id, p = self.events[key].head()
@@ -219,8 +220,8 @@ class Simulation:
     def passenger_data(self):
         if (self.simu_type == "heterogeneous"):
             return 
-        (s1, s2, s3), (t1, t2, t3) = self.events[0].info()
-        return (s1, s2, s3), (t1, t2, t3)
+        (s1, s2, s3), (t1, t2, t3), (mid1, mid2, mid3) = self.events[0].info()
+        return (s1, s2, s3), (t1, t2, t3), (mid1, mid2, mid3)
 
     def fleet_data(self):
         if (self.simu_type == "heterogeneous"):
@@ -230,7 +231,7 @@ class Simulation:
         avg_freq = sum(freq) / len(freq)
         avg_ta, avg_ts = sum(ta)/len(ta)/avg_freq, sum(ts)/len(ts)/avg_freq
         avg_na, avg_ns, avg_ni = sum(self.na) / len(self.na), sum(self.ns) / len(self.ns), sum(self.ni) / len(self.ni)
-        return avg_ta, avg_ts, avg_na, avg_ns, avg_ni
+        return ta, avg_ta
     
     def opt_data(self):
         M = self.fleet_size

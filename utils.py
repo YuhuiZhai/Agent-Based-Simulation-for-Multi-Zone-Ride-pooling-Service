@@ -68,3 +68,19 @@ def location_helper(link, len):
         x3 = x1 - len / link.length * abs(x2 - x1)
         y3 = y1 + k*(x3 - x1)   
     return (x3, y3)
+
+def func(l:list, dx:float):
+    l.sort()
+    left = dx
+    curr = 0
+    distri = []
+    if len(l) == 0: return []
+    while True:
+        count = 0
+        while l[curr] <= left:
+            count += 1
+            curr += 1
+            if curr == len(l):
+                return distri
+        distri.append((left, left+dx, count))
+        left += dx

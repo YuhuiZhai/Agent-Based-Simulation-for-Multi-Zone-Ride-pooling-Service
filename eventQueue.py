@@ -79,7 +79,11 @@ class EventQueue:
                 s1.append(pax.t_end - pax.t_start)
             else:
                 s2.append(pax.t_end - pax.t_start)
-            total_t1 = sum(s1)/len(s1) if len(s1) != 0 else 0
-            total_t2 = sum(s2)/len(s2) if len(s2) != 0 else 0
-            total_t3 = sum(s2)/len(s2) if len(s2) != 0 else 0
-        return (s1, s2, s3), (total_t1, total_t2, total_t3)
+        total_t1 = sum(s1)/len(s1) if len(s1) != 0 else 0
+        total_t2 = sum(s2)/len(s2) if len(s2) != 0 else 0
+        total_t3 = sum(s3)/len(s3) if len(s3) != 0 else 0
+        
+        mid1 = s1[int(len(s1)/2)] if len(s1) != 0 else 0
+        mid2 = s2[int(len(s2)/2)] if len(s2) != 0 else 0
+        mid3 = s3[int(len(s3)/2)] if len(s3) != 0 else 0
+        return (s1, s2, s3), (total_t1, total_t2, total_t3), (mid1, mid2, mid3)
