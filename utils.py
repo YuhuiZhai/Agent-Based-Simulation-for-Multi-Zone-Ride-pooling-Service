@@ -1,28 +1,11 @@
 import pandas as pd
-import random 
+
 def onplotdist(node_1, node_2):
         lo1 = node_1.x
         la1 = node_1.y
         lo2 = node_2.x
         la2 = node_2.y
         return 60 * ((lo1 - lo2)**2 + (la1 - la2)**2)**(1/2)
-
-def generate_location(city):
-    """
-    generate a random location on a link
-    `city`: City
-    `return`: (x, y) or (city link, distance from link's node_o)
-    """
-    if city.type_name == "Euclidean" or city.type_name == "Manhattan":  
-        x = city.origin[0] + city.length*random.random()
-        y = city.origin[1] + city.length*random.random()
-        return x, y 
-
-    if city.type_name == "real-world":
-        n_max = city.num_link
-        idx = random.randint(0, n_max-1)
-        l = random.random() * city.links[idx].length / 2
-        return city.links[idx], l
 
 def optimal(city, arrival_rate):
     if city.type_name == "real-world":

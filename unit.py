@@ -10,10 +10,10 @@ class Unit:
         self.clock = 0
         self.speed = city.max_v
         if city.type_name == "Euclidean" or city.type_name == "Manhattan":    
-            self.x, self.y = utils.generate_location(city)
+            self.x, self.y = self.city.generate_location()
             self.idle_position = self.x, self.y
         if city.type_name == "real-world":
-            self.link, self.len = utils.generate_location(city)
+            self.link, self.len = self.city.generate_location()
             self.idle_position = self.link, self.len
         self.status = init_status
     

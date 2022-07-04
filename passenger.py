@@ -8,9 +8,9 @@ class Passenger(Unit):
         self.id = passenger_id
         self.city = city
         if self.city.type_name == "Euclidean" or self.city.type_name == "Manhattan":    
-            self.dx, self.dy = utils.generate_location(city)
+            self.dx, self.dy = self.city.generate_location()
         if city.type_name == "real-world":
-            self.d_link, self.d_len = utils.generate_location(city)
+            self.d_link, self.d_len = self.city.generate_location()
         self.vehicle = None
         # time when passenger appears
         self.t_start = t0
@@ -19,6 +19,13 @@ class Passenger(Unit):
         # time when passenger is reached 
         self.t_end = None
         self.shared = False
+
+    def dist(self):
+        if self.city.type_name == "Euclidean":
+            return ((self.dx - self.x)**2 + (self.dy - self.y)**2)**(0.5)
+        elif self.city.type_name == "Manhattan":
+            return abs(self.dx - self.x) + abs(self.dy - self.y)
+
     def isShared(self):
         self.shared = True
         return 

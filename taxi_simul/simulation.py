@@ -9,6 +9,7 @@ from animation import Animation
 import pandas as pd
 import pulp
 import scipy.optimize as sp
+
 class Simulation:
     def __init__(self, city:City, T:float, simul_type="", lmd=None, fleet_size=None, 
                 lmd_map=None, fleet_map=None, gr = True, threshold_map = None, lr  = True,
@@ -18,11 +19,12 @@ class Simulation:
         self.lr, self.gr, self.swap, self.split = lr, gr, swap, split
         self.simu_type = simul_type if simul_type in ["homogeneous", "heterogeneous"] else "homogeneous" 
         if self.simu_type == "homogeneous":
-            self.city = city
-            self.lmd = lmd
+            self.city, self.lmd = city, lmd
             self.fleet_size = fleet_size if fleet_size != None else 1.5*utils.optimal(self.city, self.lmd)[4]
-            self.fleet[0] = Taxifleet(fleet_size, city, 0)
-            self.events[0] = EventQueue(city, T, lmd, 0)
+            self.fleet[0] = Taxifleet(fleet_size, self.city, 0)
+            self.events[0] = EventQueue(self.city, T, lmd, 0)
+
+        # rng should be adjusted for heterogeneous case in the future
         elif self.simu_type == "heterogeneous":
             self.lmd_map, self.fleet_map, self.gr, self.threshold_map = lmd_map, fleet_map, gr, threshold_map
             self.fleet_size, self.lmd = sum(sum(i) for i in fleet_map), sum(sum(i) for i in lmd_map) 
@@ -41,7 +43,7 @@ class Simulation:
         num_per_line = len(self.lmd_map)
         for i in range(num_per_line):
             for j in range(num_per_line):
-                subcity = City(self.temp.type_name, length=self.temp.length, origin=(i*self.temp.length, (num_per_line-1-j)*self.temp.length))
+                subcity = City(self.temp.type_name, length=self.temp.length, origin=(i*self.temp.length, (num_per_line-1-j)*self.temp.length), rng=self.rng)
                 subfleet = Taxifleet(self.fleet_map[i][j], subcity, str(i*num_per_line+j))
                 subevents = EventQueue(subcity, self.T, self.lmd_map[i][j], str(i*num_per_line+j))
                 self.fleet[subfleet.id] = subfleet
@@ -74,7 +76,8 @@ class Simulation:
             [ax, ay], [sx, sy], [ix, iy], [interx, intery] = self.fleet[key].sketch_helper()
             total_ax += ax; total_ay += ay; total_sx += sx; total_sy += sy
             total_ix += ix; total_iy += iy; total_interx += interx; total_intery += intery; 
-            self.fleet[key].local_reallocation(self.lr)
+            if int(self.clock/res) % 200 == 0:
+                self.fleet[key].local_reallocation(self.lr)
         self.na.append(total_na)
         self.ns.append(total_ns)
         self.ni.append(total_ni)
@@ -168,7 +171,8 @@ class Simulation:
     def sharing_serve(self, res:float, detour_dist:float):
         prev = 0
         self.timeline = np.arange(0, self.T, res)
-        for t in tqdm(self.timeline, desc="sharing_serve loading"):
+        for t in self.timeline:
+        # for t in tqdm(self.timeline, desc="sharing_serve loading"):
             self.update(res)
             for key in self.fleet:
                 p_id, p = self.events[key].head()
@@ -188,7 +192,8 @@ class Simulation:
         prev = 0
         # probability of success
         prob = []
-        for t in tqdm(self.timeline, desc="batch_serve loading"):
+        # for t in tqdm(self.timeline, desc="batch_serve loading"):
+        for t in self.timeline:
             self.update(res)
             # when it is batching time, starts serving
             if (batch_idx >= len(batch_timeline)):
@@ -209,7 +214,7 @@ class Simulation:
                         unserved = self.fleet[key].batch_serve(passengers, r)
                         served_num = pax_num - len(unserved)
                         ps, pd = served_num / pax_num, served_num / idle_num
-                        prob.append((t, served_num, pax_num, idle_num, ps, pd))
+                        prob.append((served_num, pax_num, idle_num))
                         for pax in unserved:
                             self.events[key].insert(pax)
                 batch_idx += 1
@@ -217,17 +222,23 @@ class Simulation:
             self.p.append(prev)     
         return prob
     
+    def num_data(self):
+        na = sum(self.na)/len(self.na)
+        ns = sum(self.ns)/len(self.ns)
+        ni = sum(self.ni)/len(self.ni)
+        return (na, ns, ni)
+
     def passenger_data(self):
         if (self.simu_type == "heterogeneous"):
             return 
-        (s1, s2, s3), (t1, t2, t3), (mid1, mid2, mid3) = self.events[0].info()
-        return (s1, s2, s3), (t1, t2, t3), (mid1, mid2, mid3)
+        (totalt1, totalt2, totalt3), (total_t1, total_t2, total_t3), (at1, at2, at3), (a_t1, a_t2, a_t3) = self.events[0].info()
+        return (totalt1, totalt2, totalt3), (total_t1, total_t2, total_t3), (at1, at2, at3), (a_t1, a_t2, a_t3)
 
     def fleet_data(self):
         if (self.simu_type == "heterogeneous"):
             return 
         dist_a, dist_s, ta, ts, freq, unserved = self.fleet[0].homo_info()
-        print("unserved: ", unserved)
+        # print("unserved: ", unserved)
         avg_freq = sum(freq) / len(freq)
         avg_ta, avg_ts = sum(ta)/len(ta)/avg_freq, sum(ts)/len(ts)/avg_freq
         avg_na, avg_ns, avg_ni = sum(self.na) / len(self.na), sum(self.ns) / len(self.ns), sum(self.ni) / len(self.ni)

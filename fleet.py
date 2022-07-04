@@ -7,6 +7,7 @@ class Fleet:
         self.vehicles = {}
         self.status_table = {}
         self.vehs_group = {}
+        
     # status_name: dictionary of status, key is status, value is string_type name
     # status_num: initial number of status, key is status, value is int_type number
     def init_group(self, status_name:dict):

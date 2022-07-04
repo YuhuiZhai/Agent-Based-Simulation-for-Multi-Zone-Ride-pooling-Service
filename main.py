@@ -5,14 +5,9 @@ from city import City
 import xlsxwriter as xw
 import utils
 import numpy as np
+import matplotlib.pyplot as plt
+import time 
 # city = City("real-world", node_file="node.xls", link_file="link.xls")
-# city.read()
-random.seed(2)
-city = City()
-s = Simulation(city, fleet_size=20, lmd=50, T=10)
-s.simple_serve(res=1/3600)
-s.make_animation(compression=20)
-
 # print(s.passenger_data()[1])
 # print(s.passenger_data()[2])
 # s.make_animation(compression=30)
@@ -73,49 +68,35 @@ s.make_animation(compression=20)
 # workbook.close()
 
 # city = City(type_name="Manhattan")
-# f = 30
-# l = 50
-# max_detour = 1
-# # max_batch = 60
-# workbook = xw.Workbook("M{}_lmd{}_detour{}.xlsx".format(f, l, max_detour))
+# f_max = 44
+# l = 200
+# # max_detour = 2
+# max_batch = 60
+# workbook = xw.Workbook("M{}_lmd{}_detour{}.xlsx".format(f_max, l, max_batch))
 # worksheet1 = workbook.add_worksheet("1")
-# worksheet2 = workbook.add_worksheet("2")
 # totalt1, totalt2, totalavg = [], [], []
-# mid1s, mid2s, mid3s = [], [], []
-# avgtas = []
-# for i in np.arange(0, max_detour, 0.05):
-#     random.seed(2)
-#     s = Simulation(city, fleet_size=f, T=10, lmd=l)
-#     s.sharing_serve(res=1/3600, detour_dist=i)
-#     (t1, t2, t3), (mid1, mid2, mid3) = s.passenger_data()[1], s.passenger_data()[2]
-#     totalt1.append(t1)
-#     totalt2.append(t2)
-#     totalavg.append(t3)
-#     mid1s.append(mid1)
-#     mid2s.append(mid2)
-#     mid3s.append(mid3)
-# worksheet1.write(0, 0, "detour percentage")
-# worksheet1.write(0, 1, "avg idle t")
-# worksheet1.write(0, 2, "avg shared t")
-# worksheet1.write(0, 3, "avg combined t")
-# worksheet2.write(0, 0, "detour percentage")
-# worksheet2.write(0, 1, "mid idle t")
-# worksheet2.write(0, 2, "mid shared t")
-# worksheet2.write(0, 3, "mid combined t")
-
+# for i in np.arange(1, max_batch+1, 4):
+#     totalt1.append([])
+#     for f in np.arange(int(2/3)*f_max, f_max+1, 1):
+#         random.seed(2)
+#         s = Simulation(city, fleet_size=f, T=10, lmd=l)
+#         # s.sharing_serve(res=1/3600, detour_dist=i)
+#         s.batch_serve(res=1/3600, dt=i/3600)
+#         (t1, t2, t3), (mid1, mid2, mid3) = s.passenger_data()[1], s.passenger_data()[2]
+#         totalt1[-1].append(t1)
+# worksheet1.write(0, 0, "batch gap \ fleet size")
 # for i in range(len(totalt1)):
-#     worksheet1.write(i+1, 0, i)
-#     worksheet1.write(i+1, 1, totalt1[i])
-#     worksheet1.write(i+1, 2, totalt2[i])
-#     worksheet1.write(i+1, 3, totalavg[i])
-
-# for i in range(len(mid1s)):
-#     worksheet2.write(i+1, 0, i)
-#     worksheet2.write(i+1, 1, mid1s[i])
-#     worksheet2.write(i+1, 2, mid2s[i])
-#     worksheet2.write(i+1, 3, mid3s[i])
+#     worksheet1.write(i+1, 0, i+1)
+# for j in range(len(totalt1[0])):
+#     worksheet1.write(0, j+1, j+1)
+# for i in range(len(totalt1)):
+#     for j in range(len(totalt1[i])):
+#         worksheet1.write(i+1, j+1, totalt1[i][j])
 # workbook.close()
-
+# totalt1 = np.array(totalt1)
+# im = plt.imshow(totalt1, interpolation='none')
+# plt.colorbar(im, orientation='horizontal')  
+# plt.show()
 # random.seed(2)
 # city = City(type_name="Manhattan")
 # f = 200
@@ -168,3 +149,10 @@ s.make_animation(compression=20)
 #     worksheet3.write(i+1, 0, i+1)
 #     worksheet3.write(i+1, 1, s3[i])
 # workbook2.close()
+# start = time.time()
+
+city1 = City("Manhattan")
+s1 = Simulation(city1, fleet_size=1800, lmd=10000, T=10, lr=False,swap=True)
+s1.batch_serve(res=1/3600, dt=5/3600)
+print(s1.passenger_data()[1])
+

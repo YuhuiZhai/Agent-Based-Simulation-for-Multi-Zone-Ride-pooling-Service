@@ -29,6 +29,7 @@ class Taxi(Unit):
         self.speed = city.max_v
 
     def add(self, passenger:Passenger):
+        passenger.vehicle = self.id
         if self.city.type_name == "Euclidean" or self.city.type_name == "Manhattan": 
             # path info is stored as tuple ((x, y), position_type) 
             # position_type 1 means passenger origin, 2 means passenger destination

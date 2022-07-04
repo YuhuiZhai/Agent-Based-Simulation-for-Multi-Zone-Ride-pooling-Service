@@ -1,23 +1,24 @@
 import heapq as hq
-import random
+import numpy as np
 from passenger import Passenger
 from city import City
 
 class EventQueue:
-    def __init__(self, city:City, T:float, lmd:float, id):
+    def __init__(self, city:City, T:float, lmd:float, id, rng=None):
         # queue by time priority
         self.queue = []
         # dictionary to record passengers, key is passenger id, value is passenger 
         self.record = {}
         # dictionary to record passengers who is being served, key is passenger id, value is passenger 
         self.sketch_dict = {}
-        self.city, self.T, self.lmd, self.id = city, T, lmd, id
+        self.city, self.T, self.lmd, self.id, self.rng = city, T, lmd, id, np.random.default_rng(seed=2)
         self.size = 0
         self.clock = 0
         t = 0
         passenger_id = 0
         while t < T:
-            dt = random.expovariate(lmd)
+            # dt = random.expovariate(lmd)
+            dt = self.rng.exponential(scale=1/lmd)
             t += dt
             passenger = Passenger(t, (self.id, passenger_id), city)
             passenger_id += 1
@@ -69,21 +70,25 @@ class EventQueue:
 
     # return the passenger assigned time 
     def info(self):
-        s1, s2, s3 = [], [], []
+        totalt1, totalt2, totalt3 = [], [], []
+        at1, at2, at3 = [], [], []
         for id in self.record:
             pax = self.record[id]
             if pax.t_end == None:
                 continue
-            s3.append(pax.t_end - pax.t_start)
+            totalt3.append(pax.t_end - pax.t_start)
+            at3.append(pax.t_s - pax.t_start)
             if not pax.shared:
-                s1.append(pax.t_end - pax.t_start)
+                totalt1.append(pax.t_end - pax.t_start)
+                at1.append(pax.t_s - pax.t_start)
             else:
-                s2.append(pax.t_end - pax.t_start)
-        total_t1 = sum(s1)/len(s1) if len(s1) != 0 else 0
-        total_t2 = sum(s2)/len(s2) if len(s2) != 0 else 0
-        total_t3 = sum(s3)/len(s3) if len(s3) != 0 else 0
+                totalt2.append(pax.t_end - pax.t_start)
+                at2.append(pax.t_s - pax.t_start)
         
-        mid1 = s1[int(len(s1)/2)] if len(s1) != 0 else 0
-        mid2 = s2[int(len(s2)/2)] if len(s2) != 0 else 0
-        mid3 = s3[int(len(s3)/2)] if len(s3) != 0 else 0
-        return (s1, s2, s3), (total_t1, total_t2, total_t3), (mid1, mid2, mid3)
+        total_t1 = np.average(np.array(totalt1)) if len(totalt1) != 0 else 0
+        total_t2 = np.average(np.array(totalt2)) if len(totalt2) != 0 else 0
+        total_t3 = np.average(np.array(totalt3)) if len(totalt3) != 0 else 0
+        a_t1 = np.average(np.array(at1)) if len(at1) != 0 else 0
+        a_t2 = np.average(np.array(at2)) if len(at2) != 0 else 0
+        a_t3 = np.average(np.array(at3)) if len(at3) != 0 else 0
+        return (totalt1, totalt2, totalt3), (total_t1, total_t2, total_t3), (at1, at2, at3), (a_t1, a_t2, a_t3)

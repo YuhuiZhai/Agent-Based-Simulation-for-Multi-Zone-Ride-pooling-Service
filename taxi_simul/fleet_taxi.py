@@ -1,3 +1,4 @@
+from re import L
 from fleet import Fleet
 from city import City
 from taxi_simul.taxi import Taxi
@@ -29,7 +30,7 @@ class Taxifleet(Fleet):
             self.release_veh(sent_veh)
             fleet.add_veh(sent_veh)
             sent_veh.changeCity(fleet.city)
-            sent_veh.idle_position = utils.generate_location(fleet.city)
+            sent_veh.idle_position = self.city.generate_location()
             status_request = sent_veh.interchanging()
             fleet.changeVehStatus(status_request)
     
@@ -64,36 +65,32 @@ class Taxifleet(Fleet):
             return
         if not decision:
             for idle_veh in self.vehs_group[2]:
-                idle_veh.idle_postion = utils.generate_location(self.city)
+                idle_veh.idle_postion = self.city.generate_location()
             return 
-        valid_vehs = {}
-        idx1 = 0
-        for idle_veh in self.vehs_group[2]:
-            valid_vehs[idx1] = idle_veh
-            valid_vehs[idle_veh] = idx1
-            idx1 += 1
-        if idx1 <= 1:
+        idle_vehs = [idle_veh for idle_veh in self.vehs_group[2]]
+        idle_num = len(idle_vehs)
+        if idle_num <= 1:
             return 
         idle_pos = []
-        num = int((idx1)**(0.5))
-        if (num**2 != idx1):
+        num = int((idle_num)**(0.5))
+        if (num**2 != idle_num):
             num += 1    
         even_space = self.city.length / (num-1)
         for i in range(int(num**2)):
             idle_pos.append((self.city.origin[0] + even_space*(i%num), self.city.origin[1] + even_space*int(i/num)))
-        weight_table = np.ones((int(len(valid_vehs)/2), len(idle_pos)))
-        for i in range(idx1):
-            veh = valid_vehs[i]
+        weight_table = np.ones((idle_num, len(idle_pos)))
+        for i in range(idle_num):
+            idle_veh = idle_vehs[i]
             for j in range(len(idle_pos)):
                 x, y = idle_pos[j]
                 if (self.city.type_name == "Manhattan"):
-                    weight_table[i, j] = abs(veh.x - x) + abs(veh.y - y)
+                    weight_table[i, j] = abs(idle_veh.x - x) + abs(idle_veh.y - y)
                 elif (self.city.type_name == "Euclidean"):
-                    weight_table[i, j] = ((veh.x - x)**2 + (veh.y - y)**2)**(0.5)
+                    weight_table[i, j] = ((idle_veh.x - x)**2 + (idle_veh.y - y)**2)**(0.5)
         row, col = linear_sum_assignment(weight_table)
         for i in range(len(row)):
             row_idx, col_idx = row[i], col[i]
-            opt_veh = valid_vehs[row_idx]
+            opt_veh = idle_vehs[row_idx]
             opt_veh.idle_position = idle_pos[col_idx]
         return
 
@@ -133,17 +130,17 @@ class Taxifleet(Fleet):
             return dist
     
     def detour_dist(self, O:tuple, D:tuple, P:tuple):
-            ox, oy = O
-            dx, dy = D
-            px, py = P
-            return 2*(max(ox-px, 0) + max(oy-py, 0) + max(px-dx, 0) + max(py-dy, 0))
+        ox, oy = O
+        dx, dy = D
+        px, py = P
+        return 2*(max(ox-px, 0) + max(oy-py, 0) + max(px-dx, 0) + max(py-dy, 0))
     
     # find optimal match of idle vehicle and passenger based on distance
     def best_match_i(self, passenger:Passenger):
         min_dist = math.inf
         opt_veh = None
         for idle_veh in self.vehs_group[2]:
-            temp_dist = self.dist(idle_veh, passenger, 3)
+            temp_dist = self.dist(idle_veh, passenger, 1)
             if temp_dist < 0:
                 continue
             if temp_dist < min_dist:
@@ -154,7 +151,8 @@ class Taxifleet(Fleet):
     # find optimal match of service vehicle and passenger based on distance
     # def best_match_s(self, passenger:Passenger, detour_percent:float):
     def best_match_s(self, passenger:Passenger, detour_dist:float):
-        min_dist = math.inf
+        min_dist_s = math.inf
+
         opt_veh = None
         A, B = passenger.location()
         for in_service_veh in self.vehs_group[1]:
@@ -166,15 +164,17 @@ class Taxifleet(Fleet):
             dist_o = self.detour_dist(O, D, A)
             # destination detour 
             dist_d = self.detour_dist(A, D, B)
+            # servicing taxi's ongoing distance
+            # dist_s = self.dist(in_service_veh, in_service_veh.passenger[0], 2)
+
             # if (dist_d + dist_o) <= detour_percent/100 * self.dist(in_service_veh, in_service_veh.passenger[0], 2):
             if (dist_d + dist_o) <= detour_dist:
-                if (dist_d + dist_o) < min_dist:
-
-                    # possible bug
-                    min_dist = dist_d + dist_o
-                    
+                # detour distance minimized 
+                if (dist_d + dist_o) < min_dist_s:
+                    min_dist_s = dist_d + dist_o
                     opt_veh = in_service_veh
-        return min_dist, opt_veh
+        # min_dist = self.dist(opt_veh, passenger, 1) if opt_veh is not None else -1
+        return min_dist_s, opt_veh
 
     # figure out the optimal taxi to serve the passenger 
     def simple_serve(self, passenger:Passenger):
@@ -196,19 +196,19 @@ class Taxifleet(Fleet):
             passenger.status = -1 
             self.unserved_num += 1
             return False
-        elif (opt_veh_i == None):
-            opt_veh_s.add(passenger)
-            passenger.isShared()
+        # elif (opt_veh_i == None):
+        #     opt_veh_s.add(passenger)
+        #     passenger.isShared()
         elif (opt_veh_s == None):
             status_request = opt_veh_i.assign(passenger)
             self.changeVehStatus(status_request)
         else:
-            if (min_dist_s <= min_dist_i):
-                opt_veh_s.add(passenger)
-                passenger.isShared()
-            else:
-                status_request = opt_veh_i.assign(passenger)
-                self.changeVehStatus(status_request)
+            # if (min_dist_s <= min_dist_i):
+            opt_veh_s.add(passenger)
+            passenger.isShared()
+            # else:
+                # status_request = opt_veh_i.assign(passenger)
+                # self.changeVehStatus(status_request)
         self.served_num += 1
         return True
 
@@ -216,34 +216,29 @@ class Taxifleet(Fleet):
     def batch_serve(self, passengers:list, r=math.inf):
         inf = 4000
         # bi direction map between nparray idx and veh
-        valid_vehs = {}
-        idx1 = 0
-        for idle_veh in self.vehs_group[2]:
-            valid_vehs[idx1], valid_vehs[idle_veh] = idle_veh, idx1
-            idx1 += 1
-        weight_table = inf * np.ones((len(passengers), int(len(valid_vehs)/2)))
-        # bi direction map between nparray idx and pax
-        valid_paxs = {}
+        
+        idle_vehs = [idle_veh for idle_veh in self.vehs_group[2]]
+        
+        weight_table = inf * np.ones((len(passengers), len(idle_vehs)))
         for idx2, pax in enumerate(passengers):
-            for idle_veh in self.vehs_group[2]:
-                dist = self.dist(idle_veh, pax, 1)
+            for idx1, idle_veh in enumerate(idle_vehs):
+                dist = self.dist(idle_veh, pax, 3)
                 # if there is no connecting path, the weight is still inf
                 if dist == -1 or dist > r:
                     continue
-                weight_table[idx2, valid_vehs[idle_veh]] = dist          
-            valid_paxs[idx2], valid_paxs[pax] = pax, idx2
+                weight_table[idx2, idx1] = dist          
         row, col = linear_sum_assignment(weight_table)
         served_num = 0
         decision_table = np.zeros(len(passengers))
         for i in range(len(row)):
             row_idx, col_idx = row[i], col[i]
-            opt_pax, opt_veh = valid_paxs[row_idx], valid_vehs[col_idx]
+            opt_pax, opt_veh = passengers[row_idx], idle_vehs[col_idx]
             if (weight_table[row_idx, col_idx] == inf):
                 continue
             status_request = opt_veh.assign(opt_pax)
             self.changeVehStatus(status_request)
             served_num += 1
-            decision_table[valid_paxs[opt_pax]] = 1
+            decision_table[row_idx] = 1
         unserved = []    
         for i, pax in enumerate(passengers):
             if not decision_table[i]:

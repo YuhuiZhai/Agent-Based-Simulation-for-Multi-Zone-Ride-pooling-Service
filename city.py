@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import heapq as hq
 import utils 
 from tqdm import tqdm
+import numpy as np
 import xlrd
 from collections import deque
 import math
@@ -72,10 +73,8 @@ class CityLink:
 class City:
     def __init__(self, type_name="", length=3.6, max_v=18.0, origin=(0, 0), node_file="", link_file=""):
         # 3 types: Eucledean, Manhatten, real-world
-        self.type_name = type_name 
-        self.length = length
-        self.max_v = max_v
-        self.origin = origin
+        self.type_name, self.length, self.max_v, self.origin = type_name, length, max_v, origin
+        self.rng = np.random.default_rng(seed=3)
         self.node_file, self.link_file = node_file, link_file
         self.stoplist = []
         self.route = []
@@ -98,6 +97,7 @@ class City:
 
     def set_origin(self, new_origin:tuple):
         self.origin = new_origin
+        return 
 
     def add_stops(self, stop_loc:list):
         for i, stopxy in enumerate(stop_loc):
@@ -136,6 +136,18 @@ class City:
         else: self.neigh[new_link.origin.id].append(new_link.destination.id)    
         self.num_link += 1
     
+    def generate_location(self):
+        if self.type_name == "Euclidean" or self.type_name == "Manhattan":  
+            x = self.origin[0] + self.length*self.rng.random()
+            y = self.origin[1] + self.length*self.rng.random()
+            return x, y 
+
+        if self.type_name == "real-world":
+            n_max = self.num_link
+            idx = self.rng.integers(low=0, high=n_max-1)
+            l = self.rng.random() * self.links[idx].length / 2
+            return self.links[idx], l
+
     def init(self):
         if self.type_name != "real-world":
             return
