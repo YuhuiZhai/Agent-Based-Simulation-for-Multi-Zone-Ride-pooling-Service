@@ -152,7 +152,5 @@ import time
 # start = time.time()
 
 city1 = City("Manhattan")
-s1 = Simulation(city1, fleet_size=1800, lmd=10000, T=10, lr=False,swap=True)
-s1.batch_serve(res=1/3600, dt=5/3600)
-print(s1.passenger_data()[1])
-
+s1 = Simulation(city1, fleet_size=20, lmd=50, T=10, lr=False,swap=False)
+s1.sharing_serve(res=1/3600, detour_dist=1)

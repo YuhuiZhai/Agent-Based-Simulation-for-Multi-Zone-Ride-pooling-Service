@@ -5,6 +5,7 @@ from taxi_simul.simulation import Simulation
 from city import City
 import xlsxwriter as xw
 import time 
+import numpy as np
 
 start = time.time()
 lock = Lock()
@@ -13,7 +14,7 @@ def func(info: tuple):
     fs, bg, idx = info
     city = City(type_name="Manhattan")
     s = Simulation(city, fleet_size=fs, T=10, lmd=10000, lr=False, swap=False)
-    prob = s.batch_serve(res=1/3600, dt=bg/3600)
+    prob = s.batch_serve(res=5/3600, dt=bg/3600)
     avg_m = sum([prob[i][0] for i in range(len(prob))])/len(prob)
     avg_mpax = sum([prob[i][1] for i in range(len(prob))])/len(prob)
     avg_mveh = sum([prob[i][2] for i in range(len(prob))])/len(prob)
@@ -35,13 +36,13 @@ if __name__ == "__main__":
         # batch_gap = 3
 
         # fs_g = range(int(5/6*fleet_size), int(7/6*fleet_size))
-        fs_g = range(1800, 1801)
-        bg_g = range(1, 60)
+        fs_g = [1500]
+        bg_g = np.arange(5, 240, 5)
         
         result = pool.map(func, [(fs, bg, i) for i, (fs, bg) in enumerate(product(fs_g, bg_g))])
         pool.close()
 
-        workbook = xw.Workbook(f"multi_M{fs_g[0]}_{fs_g[-1]}lmd1000_dt{bg_g[0]}_{bg_g[-1]}.xlsx")
+        workbook = xw.Workbook(f"batch_M{fs_g[0]}_{fs_g[-1]}lmd10000_dt{bg_g[0]}_{bg_g[-1]}.xlsx")
         for i in range(len(fs_g)):
             worksheet1 = workbook.add_worksheet(f"M{fs_g[i]}")
             worksheet1.write(0, 0, "batch gap")

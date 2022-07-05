@@ -30,8 +30,8 @@ if __name__ == "__main__":
     with Pool(processes=12) as pool:   
         start = time.time()
 
-        lmd = 200
-        fs_g = range(200, 201)
+        lmd = 1000
+        fs_g = [180, 200, 220]
         detour_list = [i for i in np.arange(0, 3.6, 0.05)]
 
         result = pool.map(func, [(fs, d, i, lmd) for i, (fs, d) in enumerate(product(fs_g, detour_list))])

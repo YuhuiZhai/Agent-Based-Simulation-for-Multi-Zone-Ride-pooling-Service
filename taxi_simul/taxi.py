@@ -40,7 +40,7 @@ class Taxi(Unit):
                 self.path2.insert(0, ((passenger.dx, passenger.dy), 2))
                 self.path2.insert(0, ((passenger.x, passenger.y), 1))
 
-        if self.city.type_name == "real-world":  
+        elif self.city.type_name == "real-world":  
             dist1, path1 = self.city.dijkstra(self.link.origin.id, passenger.link.origin.id)
             dist2, path2 = self.city.dijkstra(passenger.link.origin.id, passenger.d_link.origin.id)
             if (dist1 == -1 or dist2 == -1):
@@ -61,8 +61,8 @@ class Taxi(Unit):
             self.passenger[0].status = 3
             self.passenger[0].t_end = self.clock
             self.passenger.pop(0)
+            self.load -= 1
         self.path2.pop(0)
-        self.load -= 1
         
     def assign(self, passenger:Passenger):
         self.add(passenger)

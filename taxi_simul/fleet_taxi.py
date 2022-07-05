@@ -155,6 +155,7 @@ class Taxifleet(Fleet):
 
         opt_veh = None
         A, B = passenger.location()
+        print(f"A: {A}, B: {B}")
         for in_service_veh in self.vehs_group[1]:
             if in_service_veh.load > 1:
                 continue
@@ -164,16 +165,15 @@ class Taxifleet(Fleet):
             dist_o = self.detour_dist(O, D, A)
             # destination detour 
             dist_d = self.detour_dist(A, D, B)
-            # servicing taxi's ongoing distance
-            # dist_s = self.dist(in_service_veh, in_service_veh.passenger[0], 2)
-
-            # if (dist_d + dist_o) <= detour_percent/100 * self.dist(in_service_veh, in_service_veh.passenger[0], 2):
+            # servicing taxi's picking up distance
+            dist_s = self.dist(in_service_veh, passenger, 1)
             if (dist_d + dist_o) <= detour_dist:
-                # detour distance minimized 
-                if (dist_d + dist_o) < min_dist_s:
-                    min_dist_s = dist_d + dist_o
+                # detour distance and assigned time minimized 
+                if (dist_d + dist_o + dist_s) < min_dist_s:
+                    min_dist_s = dist_d + dist_o + dist_s
                     opt_veh = in_service_veh
         # min_dist = self.dist(opt_veh, passenger, 1) if opt_veh is not None else -1
+        
         return min_dist_s, opt_veh
 
     # figure out the optimal taxi to serve the passenger 
