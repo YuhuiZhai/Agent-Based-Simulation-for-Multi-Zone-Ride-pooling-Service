@@ -155,7 +155,7 @@ class Taxifleet(Fleet):
 
         opt_veh = None
         A, B = passenger.location()
-        print(f"A: {A}, B: {B}")
+        # print(f"A: {A}, B: {B}")
         for in_service_veh in self.vehs_group[1]:
             if in_service_veh.load > 1:
                 continue
@@ -222,7 +222,7 @@ class Taxifleet(Fleet):
         weight_table = inf * np.ones((len(passengers), len(idle_vehs)))
         for idx2, pax in enumerate(passengers):
             for idx1, idle_veh in enumerate(idle_vehs):
-                dist = self.dist(idle_veh, pax, 3)
+                dist = self.dist(idle_veh, pax, 1)
                 # if there is no connecting path, the weight is still inf
                 if dist == -1 or dist > r:
                     continue
@@ -230,11 +230,15 @@ class Taxifleet(Fleet):
         row, col = linear_sum_assignment(weight_table)
         served_num = 0
         decision_table = np.zeros(len(passengers))
+
+        # record each passenger's pick up distance
+        pickup_dist = []
         for i in range(len(row)):
             row_idx, col_idx = row[i], col[i]
             opt_pax, opt_veh = passengers[row_idx], idle_vehs[col_idx]
             if (weight_table[row_idx, col_idx] == inf):
                 continue
+            pickup_dist.append(self.dist(opt_veh, opt_pax, 1))
             status_request = opt_veh.assign(opt_pax)
             self.changeVehStatus(status_request)
             served_num += 1
@@ -245,7 +249,7 @@ class Taxifleet(Fleet):
                 unserved.append(pax)
         # self.unserved_num += len(passengers) - served_num
         # self.served_num += served_num
-        return unserved
+        return unserved, pickup_dist
 
     # function to return total driving distance, assigned time, inservice time
     def homo_info(self):
@@ -260,6 +264,15 @@ class Taxifleet(Fleet):
             ts.append(veh.ts)
             freq.append(veh.freq)
         return dist_a, dist_s, ta, ts, freq, self.unserved_num
+
+    def batch_info(self):
+        # taxi's matching time in batch 
+        tm = []
+        for veh_id in self.vehicles:
+            veh = self.vehicles[veh_id]
+            tm.append(veh.avgti())
+        avg_tm = sum(tm) / len(tm)
+        return tm, avg_tm 
 
     # function to return location of each status group
     def sketch_helper(self):

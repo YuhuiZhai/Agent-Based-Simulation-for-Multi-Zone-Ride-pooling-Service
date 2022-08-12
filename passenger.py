@@ -14,6 +14,8 @@ class Passenger(Unit):
         self.vehicle = None
         # time when passenger appears
         self.t_start = t0
+        # time when passenger is assigned
+        self.t_a = None
         # time when passenger is picked up
         self.t_s = None
         # time when passenger is reached 

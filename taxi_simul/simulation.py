@@ -190,10 +190,10 @@ class Simulation:
         batch_timeline = np.arange(0, self.T, dt)
         batch_idx = 0
         prev = 0
-        # probability of success
-        prob = []
-        # for t in tqdm(self.timeline, desc="batch_serve loading"):
-        for t in self.timeline:
+        # batch data vs each framing time
+        batch_data = [[], [], [], [], [], [], []]
+        for t in tqdm(self.timeline, desc="batch_serve loading"):
+        # for t in self.timeline:
             self.update(res)
             # when it is batching time, starts serving
             if (batch_idx >= len(batch_timeline)):
@@ -210,17 +210,29 @@ class Simulation:
                         self.events[key].dequeue()
                         p_id, p = self.events[key].head()
                     if len(passengers) != 0 and len(self.fleet[key].vehs_group[2]) != 0:
-                        pax_num, idle_num = len(passengers), len(self.fleet[key].vehs_group[2])
-                        unserved = self.fleet[key].batch_serve(passengers, r)
+                        batch_data[4].append(len(self.fleet[key].vehs_group[0]))
+                        batch_data[5].append(len(self.fleet[key].vehs_group[1]))
+                        batch_data[6].append(len(self.fleet[key].vehs_group[2]))
+                        pax_num, taxi_num = len(passengers), len(self.fleet[key].vehs_group[2])
+                        unserved, pickup_dist = self.fleet[key].batch_serve(passengers, r)
                         served_num = pax_num - len(unserved)
-                        ps, pd = served_num / pax_num, served_num / idle_num
-                        prob.append((served_num, pax_num, idle_num))
+                        avg_pickup_dist = sum(pickup_dist)/len(pickup_dist) if len(pickup_dist) != 0 else 0  
+                        batch_data[0].append(served_num)
+                        batch_data[1].append(pax_num)
+                        batch_data[2].append(taxi_num)
+                        batch_data[3].append(avg_pickup_dist)
+                        # passengers not matched still stayed in the queue
                         for pax in unserved:
                             self.events[key].insert(pax)
                 batch_idx += 1
             self.move(res)
-            self.p.append(prev)     
-        return prob
+            self.p.append(prev)   
+
+        avg_m = sum(batch_data[0])/len(batch_data[0])
+        avg_mpax = sum(batch_data[1])/len(batch_data[1])
+        avg_mveh = sum(batch_data[2])/len(batch_data[2])
+        avg_pdist = sum(batch_data[3])/len(batch_data[3])
+        return batch_data, (avg_m, avg_mpax, avg_mveh, avg_pdist)
     
     def num_data(self):
         na = sum(self.na)/len(self.na)
@@ -228,21 +240,25 @@ class Simulation:
         ni = sum(self.ni)/len(self.ni)
         return (na, ns, ni)
 
-    def passenger_data(self):
+    def passenger_data_share(self):
+        (t1, t2, t3), (avgt1, avgt2, avgt3), (ta1, ta2, ta3), (avgta1, avgta2, avgta3) = self.events[0].sharing_info()
+        return (avgt1, avgt2, avgt3), (avgta1, avgta2, avgta3) 
+
+    def passenger_data_batch(self, combined=False, steady=False):
         if (self.simu_type == "heterogeneous"):
             return 
-        (totalt1, totalt2, totalt3), (total_t1, total_t2, total_t3), (at1, at2, at3), (a_t1, a_t2, a_t3) = self.events[0].info()
-        return (totalt1, totalt2, totalt3), (total_t1, total_t2, total_t3), (at1, at2, at3), (a_t1, a_t2, a_t3)
+        (tm, ta, ts, t), (avgtm, avgta, avgts, avgt) = self.events[0].batch_info(combined, steady)
+        return (tm, ta, ts, t), (avgtm, avgta, avgts, avgt)
 
     def fleet_data(self):
         if (self.simu_type == "heterogeneous"):
             return 
         dist_a, dist_s, ta, ts, freq, unserved = self.fleet[0].homo_info()
-        # print("unserved: ", unserved)
+        tm, avg_tm = self.fleet[0].batch_info()
         avg_freq = sum(freq) / len(freq)
         avg_ta, avg_ts = sum(ta)/len(ta)/avg_freq, sum(ts)/len(ts)/avg_freq
         avg_na, avg_ns, avg_ni = sum(self.na) / len(self.na), sum(self.ns) / len(self.ns), sum(self.ni) / len(self.ni)
-        return ta, avg_ta
+        return (avg_tm, avg_ta), (avg_na, avg_ns, avg_ni), ([i*self.T/len(self.na) for i in range(len(self.na))], self.na, self.ns, self.ni)
     
     def opt_data(self):
         M = self.fleet_size

@@ -20,13 +20,16 @@ class Taxi(Unit):
         # distance of assigned, distance of service
         self.dist_a, self.dist_s = 0, 0        
         # assigned time and inservice time
-        self.ta, self.ts = 0, 0 
+        self.ta, self.ts, self.ti = 0, 0, 0 
         # frequency of being called
         self.freq = 0
     
     def changeCity(self, city:City):
         self.city = city
         self.speed = city.max_v
+    
+    def avgti(self):
+        return self.ti/(self.freq+1)
 
     def add(self, passenger:Passenger):
         passenger.vehicle = self.id
@@ -65,6 +68,7 @@ class Taxi(Unit):
         self.path2.pop(0)
         
     def assign(self, passenger:Passenger):
+        passenger.t_a = self.clock
         self.add(passenger)
         passenger.status = 1
         self.freq += 1
@@ -126,15 +130,17 @@ class Taxi(Unit):
     # move along the path and update the location of vehicle
     def move(self, dt):
         self.clock += dt
-        if (self.status == 0):
+        if self.status == 0:
             self.ta += dt
             self.dist_a += dt * self.speed 
-        elif (self.status == 1):
+        elif self.status == 1:
             self.ts += dt
             self.dist_s += dt * self.speed
+        elif self.status == 2:
+            self.ti += dt
 
         # initialize the not-changing status
-        status_request = (self.id, -1, -1)
+        status_request = (self.id, self.status, self.status)
         # Eulidean movement
         if self.city.type_name == "Euclidean":
             if self.status == 0:
@@ -172,49 +178,50 @@ class Taxi(Unit):
                 reached = self.move_Manhattan(dt, self.idle_position)
                 if (reached):
                     status_request = self.interchanged()
-
-        elif self.city.type_name == "real-world":
-            # determine the movement of first path
-            if (self.status == 2):
-                return status_request
-            elif (self.start1):
-                # edge case path1 length is 1
-                if (len(self.path1) == 1):
-                    # different direction 
-                    if (self.link.id != self.passenger[0].link.id):
-                        self.len -= dt * self.speed
-                        if (self.len < 0):
-                            self.len = 0
-                            self.link = self.passenger[0].link
-                            self.start1 = False
-                    else: 
-                        self.start1 = False
-                    return status_request
-                # general case same direction
-                elif (self.link.id == self.city.map[self.path1[0], self.path1[1]]):
-                    self.start1 = False
-                    return status_request
-                # general case different direction 
-                else:
-                    self.len -= dt * self.speed
-                    if (self.len < 0):
-                        self.len = 0
-                        self.link = self.city.links[self.city.map[self.path1[0], self.path1[1]]]
-                        self.start1 = False
-                    return status_request
+        
+        
+        # elif self.city.type_name == "real-world":
+        #     # determine the movement of first path
+        #     if (self.status == 2):
+        #         return status_request
+        #     elif (self.start1):
+        #         # edge case path1 length is 1
+        #         if (len(self.path1) == 1):
+        #             # different direction 
+        #             if (self.link.id != self.passenger[0].link.id):
+        #                 self.len -= dt * self.speed
+        #                 if (self.len < 0):
+        #                     self.len = 0
+        #                     self.link = self.passenger[0].link
+        #                     self.start1 = False
+        #             else: 
+        #                 self.start1 = False
+        #             return status_request
+        #         # general case same direction
+        #         elif (self.link.id == self.city.map[self.path1[0], self.path1[1]]):
+        #             self.start1 = False
+        #             return status_request
+        #         # general case different direction 
+        #         else:
+        #             self.len -= dt * self.speed
+        #             if (self.len < 0):
+        #                 self.len = 0
+        #                 self.link = self.city.links[self.city.map[self.path1[0], self.path1[1]]]
+        #                 self.start1 = False
+        #             return status_request
             
-            elif len(self.path1) != 0:
-                self.move_real_world(dt, self.path1, self.passenger[0].link, self.passenger[0].len)
-                return status_request
-            elif len(self.path2) != 0:
-                status_request = self.in_service()
-                if (len(self.path2) >= 2 and self.link.id != self.city.map[self.path2[0], self.path2[1]]):
-                    self.len -= dt * self.speed
-                    if (self.len < 0):
-                        self.len = 0
-                        self.link = self.city.links[self.city.map[self.path2[0], self.path2[1]]]
-                else:   
-                    reached = self.move_real_world(dt, self.path2, self.passenger[0].d_link, self.passenger[0].d_len)
-                    if (reached):    
-                        status_request = self.idle()
+        #     elif len(self.path1) != 0:
+        #         self.move_real_world(dt, self.path1, self.passenger[0].link, self.passenger[0].len)
+        #         return status_request
+        #     elif len(self.path2) != 0:
+        #         status_request = self.in_service()
+        #         if (len(self.path2) >= 2 and self.link.id != self.city.map[self.path2[0], self.path2[1]]):
+        #             self.len -= dt * self.speed
+        #             if (self.len < 0):
+        #                 self.len = 0
+        #                 self.link = self.city.links[self.city.map[self.path2[0], self.path2[1]]]
+        #         else:   
+        #             reached = self.move_real_world(dt, self.path2, self.passenger[0].d_link, self.passenger[0].d_len)
+        #             if (reached):    
+        #                 status_request = self.idle()
         return status_request

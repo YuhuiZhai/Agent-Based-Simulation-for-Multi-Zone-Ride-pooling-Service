@@ -9,6 +9,8 @@ class EventQueue:
         self.queue = []
         # dictionary to record passengers, key is passenger id, value is passenger 
         self.record = {}
+        # dequeue list
+        self.deq = []
         # dictionary to record passengers who is being served, key is passenger id, value is passenger 
         self.sketch_dict = {}
         self.city, self.T, self.lmd, self.id, self.rng = city, T, lmd, id, np.random.default_rng(seed=2)
@@ -23,7 +25,7 @@ class EventQueue:
             passenger = Passenger(t, (self.id, passenger_id), city)
             passenger_id += 1
             self.insert(passenger)
-    
+
     def move(self, dt):
         self.clock += dt
         return 
@@ -66,29 +68,68 @@ class EventQueue:
     def dequeue(self):
         self.size -= 1
         p_id, p = hq.heappop(self.queue)
+        self.deq.append(p)
         return p_id, p
 
-    # return the passenger assigned time 
-    def info(self):
-        totalt1, totalt2, totalt3 = [], [], []
-        at1, at2, at3 = [], [], []
+    def batch_info(self, combined=True, steady=False):
+        # matching time, assigned time, total traveling time 
+        tm, ta, ts, t = [], [], [], []
+        
+        # for pax in self.deq:
+        #     if pax.t_end == None:
+        #         continue
+        #     tm.append(pax.t_a - pax.t_start)
+        #     ta.append(pax.t_s - pax.t_a)
+        #     ts.append(pax.t_end - pax.t_s)
+        #     t.append(pax.t_end - pax.t_start)
+ 
+        for id in self.record:
+            pax = self.record[id]
+            if steady and pax.t_start <= self.clock*1/10:
+                continue
+            if combined:
+                if pax.t_a == None:
+                    tm.append(self.clock - pax.t_start)
+                else:
+                    tm.append(pax.t_a - pax.t_start)
+            else:
+                if pax.t_a == None:
+                    continue
+                else:
+                    tm.append(pax.t_a - pax.t_start)
+            if pax.t_s == None:
+                continue 
+            ta.append(pax.t_s- pax.t_a)
+            if pax.t_end == None:
+                continue
+            ts.append(pax.t_end - pax.t_s)
+            t.append(pax.t_end - pax.t_start)
+        avgtm = sum(tm) / len(tm) if len(tm) != 0 else -1
+        avgta = sum(ta) / len(ta) if len(ta) != 0 else -1
+        avgts = sum(ts) / len(ts) if len(ts) != 0 else -1
+        avgt = sum(t) / len(t) if len(t) != 0 else -1
+        return (tm, ta, ts, t), (avgtm, avgta, avgts, avgt)
+
+    def sharing_info(self):
+        # 1 : served by idle taxi, 2 : served by rider sharing, 3 : combined
+        t1, t2, t3 = [], [], []
+        ta1, ta2, ta3 = [], [], []
         for id in self.record:
             pax = self.record[id]
             if pax.t_end == None:
                 continue
-            totalt3.append(pax.t_end - pax.t_start)
-            at3.append(pax.t_s - pax.t_start)
+            t3.append(pax.t_end - pax.t_start)
+            ta3.append(pax.t_s - pax.t_start)
             if not pax.shared:
-                totalt1.append(pax.t_end - pax.t_start)
-                at1.append(pax.t_s - pax.t_start)
+                t1.append(pax.t_end - pax.t_start)
+                ta1.append(pax.t_s - pax.t_start)
             else:
-                totalt2.append(pax.t_end - pax.t_start)
-                at2.append(pax.t_s - pax.t_start)
-        
-        total_t1 = np.average(np.array(totalt1)) if len(totalt1) != 0 else 0
-        total_t2 = np.average(np.array(totalt2)) if len(totalt2) != 0 else 0
-        total_t3 = np.average(np.array(totalt3)) if len(totalt3) != 0 else 0
-        a_t1 = np.average(np.array(at1)) if len(at1) != 0 else 0
-        a_t2 = np.average(np.array(at2)) if len(at2) != 0 else 0
-        a_t3 = np.average(np.array(at3)) if len(at3) != 0 else 0
-        return (totalt1, totalt2, totalt3), (total_t1, total_t2, total_t3), (at1, at2, at3), (a_t1, a_t2, a_t3)
+                t2.append(pax.t_end - pax.t_start)
+                ta2.append(pax.t_s - pax.t_start)
+        avgt1 = np.average(np.array(t1)) if len(t1) != 0 else 0
+        avgt2 = np.average(np.array(t2)) if len(t2) != 0 else 0
+        avgt3 = np.average(np.array(t3)) if len(t3) != 0 else 0
+        avgta1 = np.average(np.array(ta1)) if len(ta1) != 0 else 0
+        avgta2 = np.average(np.array(ta2)) if len(ta2) != 0 else 0
+        avgta3 = np.average(np.array(ta3)) if len(ta3) != 0 else 0
+        return (t1, t2, t3), (avgt1, avgt2, avgt3), (ta1, ta2, ta3), (avgta1, avgta2, avgta3)
