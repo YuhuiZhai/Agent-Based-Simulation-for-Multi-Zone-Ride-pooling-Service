@@ -21,7 +21,7 @@ class Taxifleet(Fleet):
             self.vehs_group[2].add(veh)
 
     def global_reallocation(self, fleet:Fleet, num:int):
-        # sent_vehs = set()
+        sent_vehs = set()
         for idle_veh in self.vehs_group[2]:
             if len(sent_vehs) == num:
                 break
