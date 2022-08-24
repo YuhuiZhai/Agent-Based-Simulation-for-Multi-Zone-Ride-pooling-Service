@@ -12,9 +12,6 @@ class Unit:
         if city.type_name == "Euclidean" or city.type_name == "Manhattan":    
             self.x, self.y = self.city.generate_location()
             self.idle_position = self.x, self.y
-        if city.type_name == "real-world":
-            self.link, self.len = self.city.generate_location()
-            self.idle_position = self.link, self.len
         self.status = init_status
     
     # change self status to new status, and also return message to upper level
@@ -70,33 +67,4 @@ class Unit:
             if (self.x == dx and self.y == dy):
                 return True 
             return False
-    
-    # move along the real-world route 
-    # path is the route, dlink is the last cityNode's citylink, dlen is the last mile
-    def move_real_world(self, dt, path:list, dlink:CityLink, dlen:float):
-        # edge case last citylink
-        if len(path) == 0:
-            return True
-        if len(path) == 1:
-            temp = self.len + dt * self.speed
-            # driving over destination
-            if (temp >= dlen):
-                path.pop(0)
-                self.len = dlen
-                return True
-            else:
-                self.len = temp
-        else:
-            self.len += dt * self.speed
-            if (self.len > self.link.length):
-                path.pop(0)
-                if (len(path) == 1):
-                    self.link = dlink
-                    self.len = 0
-                # id of next link  
-                else:
-                    next_id = self.city.map[path[0], path[1]]
-                    self.link = self.city.links[next_id]
-                    self.len = 0
-        return False
     
