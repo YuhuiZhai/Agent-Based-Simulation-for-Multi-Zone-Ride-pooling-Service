@@ -2,9 +2,10 @@ import heapq as hq
 import numpy as np
 from passenger import Passenger
 from city import City
+from city import Zone
 
 class EventQueue:
-    def __init__(self, city:City, T:float, lmd:float, id):
+    def __init__(self, zone:Zone, T:float, lmd:float, id):
         # queue by time priority
         self.queue = []
         # dictionary to record passengers, key is passenger id, value is passenger 
@@ -15,7 +16,7 @@ class EventQueue:
         self.sketch_dict = {}
 
         # Initialize events info
-        self.city, self.T, self.lmd, self.id, self.rng = city, T, lmd, id, np.random.default_rng(seed=2)
+        self.zone, self.T, self.lmd, self.id, self.rng = zone, T, lmd, id, np.random.default_rng(seed=2)
         self.size = 0
         self.clock = 0
         
@@ -26,7 +27,7 @@ class EventQueue:
             # dt = random.expovariate(lmd)
             dt = self.rng.exponential(scale=1/lmd)
             t += dt
-            passenger = Passenger(t, (self.id, passenger_id), city)
+            passenger = Passenger(t, (self.id, passenger_id), zone)
             passenger_id += 1
             self.insert(passenger)
 

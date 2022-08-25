@@ -1,16 +1,14 @@
-import utils 
 from city import City
-from city import CityLink
+from city import Zone
 import math
-import random
 
 class Unit:
-    def __init__(self, id, city:City, init_status):
-        self.id, self.city = id, city
+    def __init__(self, id, zone:Zone, init_status):
+        self.id, self.zone = id, zone
         self.clock = 0
-        self.speed = city.max_v
-        if city.type_name == "Euclidean" or city.type_name == "Manhattan":    
-            self.x, self.y = self.city.generate_location()
+        self.speed = zone.max_v
+        if zone.type_name == "Euclidean" or zone.type_name == "Manhattan":    
+            self.x, self.y = self.zone.generate_location()
             self.idle_position = self.x, self.y
         self.status = init_status
     

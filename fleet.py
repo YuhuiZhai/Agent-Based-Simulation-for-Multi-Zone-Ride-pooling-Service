@@ -1,8 +1,6 @@
-from city import City
-from unit import Unit
 class Fleet:
-    def __init__(self, n:int, city:City, id):
-        self.fleet_size, self.city, self.id = n, city, id
+    def __init__(self, n:int, id):
+        self.fleet_size, self.id = n, id
         self.clock = 0
         self.vehicles = {}
         self.status_table = {}
@@ -42,20 +40,6 @@ class Fleet:
         set_out, set_in = self.vehs_group[status1], self.vehs_group[status2]
         set_out.remove(veh)
         set_in.add(veh)
-        return 
-
-    # add idle vehicle from other fleet
-    def add_veh(self, vehicle:Unit):
-        self.vehicles[vehicle.id] = vehicle
-        self.vehs_group[vehicle.status].add(vehicle)
-        self.fleet_size += 1
-        return 
-
-    # release idle vehicle to other fleet
-    def release_veh(self, vehicle:Unit):
-        self.vehicles.pop(vehicle.id)
-        self.vehs_group[vehicle.status].remove(vehicle)
-        self.fleet_size -= 1
         return 
 
     # function to serve the passenger at time t

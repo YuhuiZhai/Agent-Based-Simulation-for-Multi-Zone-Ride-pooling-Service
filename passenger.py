@@ -1,18 +1,19 @@
 import utils
 from city import City
+from city import Zone
 from unit import Unit
 class Passenger(Unit):
-    def __init__(self, t0, passenger_id, city:City):
+    def __init__(self, t0, passenger_id, zone:Zone):
         # 4 status: -1 cannot be served, 0 not picked up, 1 waited to be picked up, 2 traveling, 3 reached
-        super().__init__(passenger_id, city, 0)
+        super().__init__(passenger_id, zone, 0)
         self.id = passenger_id
-        self.city = city
+        self.zone = zone
         
         
         # Function need to be changed to let pax flow between cities
-        if self.city.type_name == "Euclidean" or self.city.type_name == "Manhattan":    
-            self.dx, self.dy = self.city.generate_location()
-            self.target_city = City()
+        if self.zone.type_name == "Euclidean" or self.zone.type_name == "Manhattan":    
+            self.dx, self.dy = self.zone.generate_location()
+            self.target_zone = Zone()
         
         
         
@@ -33,10 +34,10 @@ class Passenger(Unit):
 
     # return the trip distance from passenger's current location to the destination
     def dist(self):
-        if self.city.type_name == "Euclidean":
+        if self.zone.type_name == "Euclidean":
             return ((self.dx - self.x)**2 + (self.dy - self.y)**2)**(0.5)
 
-        elif self.city.type_name == "Manhattan":
+        elif self.zone.type_name == "Manhattan":
             return abs(self.dx - self.x) + abs(self.dy - self.y)
 
     # return whether the passenger is shared
@@ -45,5 +46,5 @@ class Passenger(Unit):
         return 
 
     def location(self):
-        if self.city.type_name == "Euclidean" or self.city.type_name == "Manhattan":    
+        if self.zone.type_name == "Euclidean" or self.zone.type_name == "Manhattan":    
             return (self.x, self.y), (self.dx, self.dy)
