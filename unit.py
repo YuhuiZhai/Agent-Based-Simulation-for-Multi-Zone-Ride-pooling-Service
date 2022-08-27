@@ -9,42 +9,17 @@ class Unit:
         self.speed = zone.max_v
         if zone.type_name == "Euclidean" or zone.type_name == "Manhattan":    
             self.x, self.y = self.zone.generate_location()
-            self.idle_position = self.x, self.y
+            self.idle_position = None
         self.status = init_status
     
     # change self status to new status, and also return message to upper level
-    def changeStatusTo(self, new_status:int):
+    def changeStatusTo(self, new_status):
         old_status = self.status
         self.status = new_status
         return (self.id, old_status, new_status)
     
     def sign(self, num):
         return (num > 0) - (num < 0)
-    
-    # move from current position to destination (x, y) using Euclidean space
-    # return true if the goal is reached
-    def move_Euclidean(self, dt:float, dxy:tuple):
-        dx, dy = dxy[0], dxy[1]
-        if (self.x == dx and self.y == dy):
-            return True
-        if (self.x == dx):
-            ydir = self.sign(dy-self.y)
-            self.y += ydir * dt * self.speed
-            self.y = ydir*min(ydir*self.y, ydir*dy)
-            if (self.y == dy):
-                return True
-        else:
-            xdir = self.sign(dx-self.x)
-            ydir = self.sign(dy-self.y)
-            alpha = math.atan(abs(self.y-dy)/abs(self.x-dx))    
-            # print(alpha)        
-            self.x += xdir*self.speed*dt*math.cos(alpha) 
-            self.y += ydir*self.speed*dt*math.sin(alpha)
-            self.x = xdir*min(xdir*self.x, xdir*dx) if xdir != 0 else self.x
-            self.y = ydir*min(ydir*self.y, ydir*dy) if ydir != 0 else self.y
-            if (self.x == dx and self.y == dy):
-                return True
-        return False
 
     # move from origin (x, y) to destination (x, y) using Manhattan space
     def move_Manhattan(self, dt:float, dxy:tuple):
@@ -66,3 +41,16 @@ class Unit:
                 return True 
             return False
     
+    # return whether one unit is out of boundary and which direction is out of boundary
+    def out_of_boundary(self):
+        xout = abs(self.x - self.zone.center[0]) >= (self.zone.length/2)
+        yout = abs(self.y - self.zone.center[1]) >= (self.zone.length/2)
+        out_dir = None
+        if xout: out_dir = 0
+        elif yout: out_dir = 1
+        return xout or yout, out_dir
+        
+    
+
+
+

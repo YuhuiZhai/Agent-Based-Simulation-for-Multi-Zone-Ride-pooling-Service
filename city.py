@@ -12,9 +12,14 @@ class Zone:
         return
     
     def generate_location(self):
-        x = self.origin[0] + self.length*self.rng.random()
-        y = self.origin[1] + self.length*self.rng.random()
+        x = self.center[0] + self.length*self.rng.random() - self.length/2
+        y = self.center[1] + self.length*self.rng.random() - self.length/2
         return x, y 
+
+    def recordij(self, ij:tuple):
+        self.ij = ij
+        return 
+
 
 class City:
     # n is the number of block per line
@@ -34,9 +39,24 @@ class City:
             return     
         self.n, self.l, self.prob_matrix = n, self.length/n, prob_matrix
         self.zone_matrix = []
+        self.zones = {}
         for i in range(n):
             self.zone_matrix.append([])
             for j in range(n):
                 center = ((j+0.5)*self.l, n*self.l-(i+0.5)*self.l)
                 zone = Zone(length=self.l, max_v=self.max_v, center=center, id=int(i*n+j), prob=prob_matrix[i][j])
+                zone.recordij((i, j))
+                self.zones[zone.id] = zone
                 self.zone_matrix[i].append(zone)
+    
+    # function to return the adjacent neigbour zone given a direction 
+    def neighborZone(self, zone:Zone, dir:int):
+        dir_map = {0:(-1, 0), 1:(0, 1), 2:(0, -1), 3:(1, 0)}
+        deltai, deltaj = dir_map[dir]
+        i, j = zone.ij
+        new_i, new_j = i+deltai, j+deltaj
+        if new_i < 0 or new_i >= self.n or new_j < 0 or new_j >= self.n: 
+            print("Error in neighborZone")
+            return
+        neighbour_zone = self.zone_matrix[new_i][new_j]
+        return neighbour_zone

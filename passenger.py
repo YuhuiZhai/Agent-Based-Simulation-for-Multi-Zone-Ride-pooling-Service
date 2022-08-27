@@ -13,8 +13,10 @@ class Passenger(Unit):
         # Function need to be changed to let pax flow between cities
         if self.zone.type_name == "Euclidean" or self.zone.type_name == "Manhattan":    
             self.dx, self.dy = self.zone.generate_location()
+            
+            # change 
             self.target_zone = Zone()
-        
+            # change
         
         
         
@@ -34,17 +36,7 @@ class Passenger(Unit):
 
     # return the trip distance from passenger's current location to the destination
     def dist(self):
-        if self.zone.type_name == "Euclidean":
-            return ((self.dx - self.x)**2 + (self.dy - self.y)**2)**(0.5)
-
-        elif self.zone.type_name == "Manhattan":
-            return abs(self.dx - self.x) + abs(self.dy - self.y)
-
-    # return whether the passenger is shared
-    def isShared(self):
-        self.shared = True
-        return 
+        return abs(self.dx - self.x) + abs(self.dy - self.y)
 
     def location(self):
-        if self.zone.type_name == "Euclidean" or self.zone.type_name == "Manhattan":    
-            return (self.x, self.y), (self.dx, self.dy)
+        return (self.x, self.y), (self.dx, self.dy)
