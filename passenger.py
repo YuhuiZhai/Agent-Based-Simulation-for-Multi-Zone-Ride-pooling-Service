@@ -8,20 +8,6 @@ class Passenger(Unit):
         super().__init__(passenger_id, zone, 0)
         self.id = passenger_id
         self.zone = zone
-        
-        
-        # Function need to be changed to let pax flow between cities
-        if self.zone.type_name == "Euclidean" or self.zone.type_name == "Manhattan":    
-            self.dx, self.dy = self.zone.generate_location()
-            
-            # change 
-            self.target_zone = Zone()
-            # change
-        
-        
-        
-        
-        
         self.vehicle = None
         # time when passenger appears
         self.t_start = t0
@@ -40,3 +26,11 @@ class Passenger(Unit):
 
     def location(self):
         return (self.x, self.y), (self.dx, self.dy)
+    
+    def assignTargetZone(self, zone:Zone):
+        self.target_zone = zone
+        self.dx, self.dy = self.target_zone.generate_location()
+
+    def print(self):
+        print(f"pos {(self.x, self.y)}, target pos {(self.dx, self.dy)}, zone {self.zone.id}, target zone{self.target_zone.id}")
+        return 

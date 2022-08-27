@@ -7,9 +7,8 @@ class Unit:
         self.id, self.zone = id, zone
         self.clock = 0
         self.speed = zone.max_v
-        if zone.type_name == "Euclidean" or zone.type_name == "Manhattan":    
-            self.x, self.y = self.zone.generate_location()
-            self.idle_position = None
+        self.x, self.y = self.zone.generate_location()
+        self.idle_position = None
         self.status = init_status
     
     # change self status to new status, and also return message to upper level
@@ -22,24 +21,24 @@ class Unit:
         return (num > 0) - (num < 0)
 
     # move from origin (x, y) to destination (x, y) using Manhattan space
-    def move_Manhattan(self, dt:float, dxy:tuple):
-            dx, dy = dxy[0], dxy[1]
-            # xmove = random.randint(0, 1)
-            xmove = 1
-            ymove = 1 - xmove
-            if (self.x == dx):
-                xmove, ymove = 0, 1
-            elif (self.y == dy):
-                xmove, ymove = 1, 0
-            xdir = self.sign(dx-self.x)
-            ydir = self.sign(dy-self.y)
-            self.x += xdir * xmove* dt * self.speed
-            self.y += ydir * ymove* dt * self.speed
-            self.x = xdir*min(xdir*self.x, xdir*dx) if xdir != 0 else self.x
-            self.y = ydir*min(ydir*self.y, ydir*dy) if ydir != 0 else self.y
-            if (self.x == dx and self.y == dy):
-                return True 
-            return False
+    def move_Manhattan(self, dt:float, dxy:tuple, xfirst=True):
+        dx, dy = dxy[0], dxy[1]
+        # xmove = random.randint(0, 1)
+        xmove = xfirst
+        ymove = 1 - xmove
+        if (self.x == dx):
+            xmove, ymove = 0, 1
+        elif (self.y == dy):
+            xmove, ymove = 1, 0
+        xdir = self.sign(dx-self.x)
+        ydir = self.sign(dy-self.y)
+        self.x += xdir * xmove* dt * self.speed
+        self.y += ydir * ymove* dt * self.speed
+        self.x = xdir*min(xdir*self.x, xdir*dx) if xdir != 0 else self.x
+        self.y = ydir*min(ydir*self.y, ydir*dy) if ydir != 0 else self.y
+        if (self.x == dx and self.y == dy):
+            return True 
+        return False
     
     # return whether one unit is out of boundary and which direction is out of boundary
     def out_of_boundary(self):

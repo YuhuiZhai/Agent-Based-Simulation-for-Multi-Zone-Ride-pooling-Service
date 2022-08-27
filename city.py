@@ -1,9 +1,10 @@
 import numpy as np
+import matplotlib.pyplot as plt
 class Zone:
     # prob is the tuple of probalbility traveling towards N, E, W, S
     def __init__(self, length=3.6, max_v=18.0, center=(0.5, 0.5), id=0, prob=(0.25, 0.25, 0.25, 0.25)):
         self.length, self.max_v, self.center, self.id = length, max_v, center, id
-        self.rng = np.random.default_rng(seed=3)
+        self.rng = np.random.default_rng(seed=20)
         self.prob = prob
 
     # set the center of the zone
@@ -11,15 +12,26 @@ class Zone:
         self.center = new_center
         return
     
-    def generate_location(self):
-        x = self.center[0] + self.length*self.rng.random() - self.length/2
-        y = self.center[1] + self.length*self.rng.random() - self.length/2
+    # xlim and ylim defines the location restriction within this zone
+    def generate_location(self, xlim=None, ylim=None):
+        if xlim == None: 
+            xlim = [self.center[0] - self.length/2, self.center[0] + self.length/2]
+        if ylim == None:
+            ylim = [self.center[1] - self.length/2, self.center[1] + self.length/2] 
+        xlim.sort()
+        ylim.sort()
+        lengthx, lengthy = abs(xlim[1] - xlim[0]), abs(ylim[1] - ylim[0])
+        centerx, centery = (xlim[0] + xlim[1])/2, (ylim[0] + ylim[1])/2  
+        x = centerx - lengthx/2 + lengthx*self.rng.random() 
+        y = centery - lengthy/2 + lengthy*self.rng.random() 
         return x, y 
 
     def recordij(self, ij:tuple):
         self.ij = ij
         return 
 
+    def print(self):
+        print(f"length {self.length}, center {self.center}, prob {self.prob}")
 
 class City:
     # n is the number of block per line
@@ -35,8 +47,7 @@ class City:
     # If city was splitted before, this function will replace the city by a new one. 
     def split(self, n:int, prob_matrix):
         if prob_matrix == None:
-            print("Error in no prob_matrix")
-            return     
+            prob_matrix = [[(0.25, 0.25, 0.25, 0.25) for j in range(n)] for i in range(n)]
         self.n, self.l, self.prob_matrix = n, self.length/n, prob_matrix
         self.zone_matrix = []
         self.zones = {}
@@ -60,3 +71,13 @@ class City:
             return
         neighbour_zone = self.zone_matrix[new_i][new_j]
         return neighbour_zone
+    
+    def getZone(self, zone_id:int):
+        return self.zones[zone_id]
+
+    def sketch(self):
+        for i in range(self.n+1):
+            plt.plot([0, self.length], [i*self.l, i*self.l], 'g')
+        for i in range(self.n+1):
+            plt.plot([i*self.l, i*self.l], [0, self.length], 'g')
+        return 
