@@ -4,7 +4,7 @@ class Zone:
     # prob is the tuple of probalbility traveling towards N, E, W, S
     def __init__(self, length=3.6, max_v=18.0, center=(0.5, 0.5), id=0, prob=(0.25, 0.25, 0.25, 0.25)):
         self.length, self.max_v, self.center, self.id = length, max_v, center, id
-        self.rng = np.random.default_rng(seed=20)
+        self.rng = np.random.default_rng(seed=5)
         self.prob = prob
 
     # set the center of the zone
@@ -42,6 +42,10 @@ class City:
     def __init__(self, length:float, max_v=18.0, n=1, prob_matrix=None):
         self.length, self.max_v = length, max_v
         self.split(n, prob_matrix)
+        # feasible zone is a dictionary storing Case 2 pair {key=(ozone_id, dzone_id) : value=[feasible zone id]}
+        self.feasible_zone2 = {}
+        # feasible zone is a dictionary storing Case 3 pair {key=(ozone_id, dzone_id) : value=[feasible zone id]}
+        self.feasible_zone3 = {}
 
     # function to split the city into n x n zones
     # If city was splitted before, this function will replace the city by a new one. 
@@ -72,6 +76,122 @@ class City:
         neighbour_zone = self.zone_matrix[new_i][new_j]
         return neighbour_zone
     
+    # given two xy tuple, return the relative direction of xy2 to xy1 
+    def dir(self, xy1:tuple, xy2:tuple):
+        x1, y1 = xy1
+        x2, y2 = xy2
+        xdir, ydir = 0, 0
+        if x2 > x1: xdir = 1
+        elif x2 < x1: xdir = -1
+        if y2 > y1: ydir = 1
+        elif y2 < y1: ydir = -1
+        return xdir, ydir        
+
+    # Case 1 feasible region, return range of x, y
+    def feasibleZone_1(self, c_oxy, c_dxy, c_zone:Zone):
+        xdir, ydir = self.dir(c_oxy, c_dxy)
+        xlim1, ylim1 = [c_oxy[0], c_dxy[0]], [c_oxy[1], c_dxy[1]]
+        xlim2, ylim2 = [c_dxy[0], c_zone.center[0] + xdir*self.l/2], [c_dxy[1], c_zone.center[1] + ydir*self.l/2]
+        xlim1.sort(); xlim2.sort(); ylim1.sort(); ylim2.sort()
+        return xlim1, ylim1, xlim2, ylim2
+
+    # Case 2 feasible region, return list of feasible zones id
+    def feasibleZone_2(self, c_ozone_id:int, c_dzone_id:int):
+        c_ozone, c_dzone = self.zones[c_ozone_id], self.zones[c_dzone_id]
+        xdir, ydir = self.dir(c_ozone.center, c_dzone.center)
+        if xdir == 0 and ydir == 0:
+            print("Error in Case 2")
+            return 
+        else:
+            if (c_ozone_id, c_dzone_id) in self.feasible_zone2:
+                return self.feasible_zone2[(c_ozone_id, c_dzone_id)]
+            i1, j1 = c_ozone.ij
+            i2, j2 = c_dzone.ij
+            xlim1, ylim1 = [j1, j2], [i1, i2]
+            xlim1.sort(); ylim1.sort()
+            feasible_zone = []
+            i3, j3 = int(-(ydir - 1)*1/2*(self.n-1)), int((1 + xdir)*1/2*(self.n-1))
+            for i in range(ylim1[0], ylim1[1]+1):
+                for j in range(xlim1[0], xlim1[1]+1):
+                    zone_id = self.zone_matrix[i][j].id
+                    if zone_id == c_ozone.id or zone_id == c_dzone.id:
+                        continue
+                    feasible_zone.append(zone_id)
+            # od are not aligned in the same diretcion
+            if xdir != 0 and ydir != 0:
+                xlim2, ylim2 = [j2, j3], [i2, i3]
+                xlim2.sort(); ylim2.sort()
+                for i in range(ylim2[0], ylim2[1]+1):
+                    for j in range(xlim2[0], xlim2[1]+1):
+                        feasible_zone.append(self.zone_matrix[i][j].id)
+            # od are aligned in the same diretcion
+            else:
+                if xdir == 0:
+                    ylim2 = [i2, i3]; ylim2.sort()
+                    for i in range(ylim2[0], ylim2[1]+1):
+                        for j in range(0, self.n):
+                            feasible_zone.append(self.zone_matrix[i][j].id)
+                else:
+                    xlim2 = [j2, j3]; xlim2.sort()
+                    for i in range(0, self.n):
+                        for j in range(xlim2[0], xlim2[1]+1):
+                            feasible_zone.append(self.zone_matrix[i][j].id)
+            self.feasible_zone2[(c_ozone_id, c_dzone_id)] = feasible_zone
+        return feasible_zone
+
+    # Case 3 feasible region, return list of feasible zones 
+    def feasibleZone_3(self, c_oxy, c_dxy, c_zone_id:int):
+        xdir, ydir = self.dir(c_oxy, c_dxy)
+        if xdir == 0 and ydir == 0:
+            print("Error in Case 3")
+            return 
+        if (c_zone_id, (xdir, ydir)) in self.feasible_zone3:
+            return self.feasible_zone3[(c_zone_id, (xdir, ydir))]
+        c_zone = self.zones[c_zone_id]
+        i1, j1 = c_zone.ij
+        feasible_zone = []
+        i2, j2 = int(-(ydir - 1)*1/2*(self.n-1)), int((1 + xdir)*1/2*(self.n-1))
+        if xdir != 0 and ydir != 0:
+            ylim1, xlim1 = [i1, i2], [j1, j2] 
+            ylim1.sort(); xlim1.sort()
+            for i in range(ylim1[0], ylim1[1]+1):
+                for j in range(xlim1[0], xlim1[1]+1):
+                    zone_id = self.zone_matrix[i][j].id
+                    if zone_id == c_zone_id:
+                        continue
+                    feasible_zone.append(zone_id)
+        elif xdir == 0:
+            ylim1 = [i1, i2]
+            ylim1.sort()
+            for i in range(ylim1[0], ylim1[1]+1):
+                zone_id = self.zone_matrix[i][j1].id
+                if zone_id == c_zone_id:
+                    continue
+                feasible_zone.append(zone_id)
+        else:
+            xlim1 = [j1, j2]
+            xlim1.sort()
+            for j in range(xlim1[0], xlim1[1]+1):
+                zone_id = self.zone_matrix[i1][j].id
+                if zone_id == c_zone_id:
+                    continue
+                feasible_zone.append(zone_id)
+        self.feasible_zone3[(c_zone_id, (xdir, ydir))] = feasible_zone
+        return feasible_zone
+
+    # Case 4 feasible region, return range of x, y
+    def feasibleZone_4(self, c_oxy:tuple, c_ozone_id:int, c_dzone_id:int):
+        c_ozone, c_dzone = self.zones[c_ozone_id], self.zones[c_dzone_id]
+        xdir, ydir = self.dir(c_ozone.center, c_dzone.center)
+        if xdir != 0 and ydir != 0:
+            xlim, ylim = [c_oxy[0], c_ozone.center[0]+xdir*self.l/2], [c_oxy[1], c_ozone.center[1]+ydir*self.l/2]
+        elif xdir == 0:
+            xlim, ylim = [c_ozone.center[0]-self.l/2, c_ozone.center[0]+self.l/2], [c_oxy[1], c_ozone.center[1] + ydir*self.l/2]    
+        else:
+            xlim, ylim = [c_oxy[0], c_ozone.center[0]+xdir*self.l/2], [c_ozone.center[1]-self.l/2, c_ozone.center[1]+self.l/2]        
+        xlim.sort(); ylim.sort()
+        return xlim, ylim
+
     def getZone(self, zone_id:int):
         return self.zones[zone_id]
 
