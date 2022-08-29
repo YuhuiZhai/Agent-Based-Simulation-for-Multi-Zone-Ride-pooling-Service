@@ -28,7 +28,12 @@ class Zone:
 
     def recordij(self, ij:tuple):
         self.ij = ij
-        return 
+        return
+
+    def sketch(self, delta=0.985):
+        x1, x2 = self.center[0] - self.length/2*delta, self.center[0] + self.length/2*delta
+        y1, y2 = self.center[1] - self.length/2*delta, self.center[1] + self.length/2*delta  
+        plt.fill_between([x1, x2], [y1, y1], [y2, y2], color="None", hatch="/", edgecolor="r")
 
     def print(self):
         print(f"length {self.length}, center {self.center}, prob {self.prob}")
@@ -88,7 +93,8 @@ class City:
         return xdir, ydir        
 
     # Case 1 feasible region, return range of x, y
-    def feasibleZone_1(self, c_oxy, c_dxy, c_zone:Zone):
+    def feasibleZone_1(self, c_oxy, c_dxy, c_zone_id:int):
+        c_zone = self.zones[c_zone_id]
         xdir, ydir = self.dir(c_oxy, c_dxy)
         xlim1, ylim1 = [c_oxy[0], c_dxy[0]], [c_oxy[1], c_dxy[1]]
         xlim2, ylim2 = [c_dxy[0], c_zone.center[0] + xdir*self.l/2], [c_dxy[1], c_zone.center[1] + ydir*self.l/2]
@@ -200,4 +206,11 @@ class City:
             plt.plot([0, self.length], [i*self.l, i*self.l], 'g')
         for i in range(self.n+1):
             plt.plot([i*self.l, i*self.l], [0, self.length], 'g')
+        return 
+
+    # sketch wanted zones
+    def sketchZone(self, zone_ids:list):
+        for zone_id in zone_ids:
+            zone = self.zones[zone_id]
+            zone.sketch()
         return 

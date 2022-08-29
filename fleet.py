@@ -8,20 +8,20 @@ class Fleet:
         
     # status_name: dictionary of status, key is status, value is string_type name
     # status_num: initial number of status, key is status, value is any number
-    def init_group(self, status_name:dict):
+    def init(self, status_name:dict):
         self.status_table = status_name
         for status in status_name:
             self.vehs_group[status] = set()
         return 
 
     # function to check whether the status is already existed
-    def in_group(self, status):
+    def inVehGroup(self, status):
         return status in self.vehs_group
 
     # add a set of vehicles with a default status
     # status can be any type, in this case which is (s0, s1, s2, s3)
-    def add_group(self, status):
-        if self.in_group(status):
+    def addVehGroup(self, status):
+        if self.inVehGroup(status):
             print("Already exists")
             return 
         self.vehs_group[status] = set()
@@ -35,8 +35,8 @@ class Fleet:
         if status1 == status2:
             return
         veh = self.vehicles[veh_id]
-        if not self.in_group(status2):
-            self.add_group(status2)
+        if not self.inVehGroup(status2):
+            self.addVehGroup(status2)
         set_out, set_in = self.vehs_group[status1], self.vehs_group[status2]
         set_out.remove(veh)
         set_in.add(veh)
