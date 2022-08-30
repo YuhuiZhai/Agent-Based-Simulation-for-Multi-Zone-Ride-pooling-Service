@@ -1,6 +1,4 @@
-from city import City
 from city import Zone
-import math
 
 class Unit:
     def __init__(self, id, zone:Zone, init_status):

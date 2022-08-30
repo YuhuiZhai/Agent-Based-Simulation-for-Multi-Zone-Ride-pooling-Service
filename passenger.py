@@ -3,11 +3,11 @@ from city import City
 from city import Zone
 from unit import Unit
 class Passenger(Unit):
-    def __init__(self, t0, passenger_id, zone:Zone):
+    def __init__(self, t0, passenger_id, ozone:Zone, dzone:Zone):
         # 4 status: -1 cannot be served, 0 not picked up, 1 waited to be picked up, 2 traveling, 3 reached
-        super().__init__(passenger_id, zone, 0)
+        super().__init__(passenger_id, ozone, 0)
         self.id = passenger_id
-        self.zone = zone
+        self.ozone, self.dzone = ozone, dzone 
         self.vehicle = None
         # time when passenger appears
         self.t_start = t0

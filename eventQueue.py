@@ -5,7 +5,7 @@ from city import City
 from city import Zone
 
 class EventQueue:
-    def __init__(self, zone:Zone, T:float, lmd:float, id):
+    def __init__(self, T:float, lmd_m, id, city:City):
         # queue by time priority
         self.queue = []
         # dictionary to record passengers, key is passenger id, value is passenger 
@@ -16,20 +16,23 @@ class EventQueue:
         self.sketch_dict = {}
 
         # Initialize events info
-        self.zone, self.T, self.lmd, self.id, self.rng = zone, T, lmd, id, np.random.default_rng(seed=2)
+        self.T, self.lmd_m, self.id, self.city, self.rng = T, lmd_m, id, city, np.random.default_rng(seed=2)
         self.size = 0
         self.clock = 0
         
-        # Initialize passenger info
-        t = 0
-        passenger_id = 0
-        while t < T:
-            # dt = random.expovariate(lmd)
-            dt = self.rng.exponential(scale=1/lmd)
-            t += dt
-            passenger = Passenger(t, (self.id, passenger_id), zone)
-            passenger_id += 1
-            self.insert(passenger)
+        max_zone_id = self.city.n**2-1
+        for i in range(max_zone_id+1):
+            for j in range(max_zone_id+1):
+                t = 0
+                lmd = lmd_m[i][j]
+                ozone, dzone = self.city.zones[i], self.city.zones[j]
+                idx = 0
+                while t < T:
+                    dt = self.rng.exponential(scale=1/lmd)
+                    t += dt
+                    passenger = Passenger(t0=t, passenger_id=((i, j), idx, t), ozone=ozone, dzone=dzone)
+                    self.insert(passenger)
+                    idx += 1
 
     def move(self, dt):
         self.clock += dt
@@ -63,7 +66,7 @@ class EventQueue:
     # insert a passenger to the list, the smaller the id, the greater the priority
     def insert(self, passenger:Passenger):
         self.size += 1
-        hq.heappush(self.queue, (passenger.id, passenger))
+        hq.heappush(self.queue, (passenger.id[2], passenger))
         self.record[passenger.id] = passenger
         self.sketch_dict[passenger.id] = passenger
 
@@ -74,3 +77,8 @@ class EventQueue:
         p_id, p = hq.heappop(self.queue)
         self.deq.append(p)
         return p_id, p
+        
+
+
+
+

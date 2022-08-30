@@ -1,6 +1,6 @@
 class Fleet:
-    def __init__(self, n:int, id):
-        self.fleet_size, self.id = n, id
+    def __init__(self, id):
+        self.id = id
         self.clock = 0
         self.vehicles = {}
         self.status_table = {}
