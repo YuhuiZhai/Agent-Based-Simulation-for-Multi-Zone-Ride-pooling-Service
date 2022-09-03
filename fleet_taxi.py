@@ -16,18 +16,28 @@ class Taxifleet(Fleet):
         self.zone_group = {}
         for i in range(city.n**2):
             self.zone_group[i] = {}
-        idle_status = (zone.id, -1, -1, -1)
-        self.addVehGroup(idle_status)
         # assign taxi to each zone
         for i in range(n):
             for j in range(n):
                 fleet_size = fleet_m[i][j]
                 zone = city.zone_matrix[i][j]
+                idle_status = (zone.id, -1, -1, -1)
+                self.addVehGroup(idle_status)
+                self.zone_group[zone.id][(-1, -1, -1)] = set()
                 for k in range(fleet_size):
                     veh = Taxi((zone.id, k), zone, city, idle_status)
                     self.vehicles[veh.id] = veh 
                     self.vehs_group[idle_status].add(veh)
-                    self.zone_group[zone.id][(-1, -1, -1)] = set(veh)
+                    self.zone_group[zone.id][(-1, -1, -1)].add(veh)
+    
+    # zone_move() replaces default move() 
+    def zone_move(self, dt):
+        for id in self.vehicles:
+            status_request = self.vehicles[id].move(dt)
+            self.changeVehStatus(status_request)
+            self.changeZoneStatus(status_request)
+        self.clock += dt
+        return 
 
     # change veh's status from status1 to status2 
     # the input is the same as changeVehStatus
@@ -84,7 +94,6 @@ class Taxifleet(Fleet):
                 sketch_table[converted][0].append(veh.location()[0])
                 sketch_table[converted][1].append(veh.location()[1])
         return sketch_table
-    
 
     def serve(self, passenger:Passenger):
         c_oxy, c_dxy = passenger.location()
@@ -132,7 +141,7 @@ class Taxifleet(Fleet):
                     for idle_veh in self.zone_group[ozone.id][status]:
                         dist = self.dist(idle_veh, passenger, 1)
                         if dist < dist0:
-                            opt_veh0, dist0 
+                            opt_veh0, dist0 = idle_veh, dist
 
                 elif s1 == -1 and s2 != -1 and s3 == -1:
                     for veh in self.zone_group[ozone.id][status]:
@@ -147,12 +156,13 @@ class Taxifleet(Fleet):
                             dist = self.dist(veh, passenger, 1)
                             if dist < dist4:
                                 opt_veh4, dist4 = veh, dist
+
             opt_veh, opt_dist = min([(opt_veh0, dist0), (opt_veh2, dist2), (opt_veh4, dist4)], key=lambda k : k[1])
         
         if opt_veh is None:
             passenger.status = -1
-            return False   
+            return opt_veh, opt_dist
         status_request = opt_veh.assign(passenger)
         self.changeVehStatus(status_request)
         self.changeZoneStatus(status_request)
-        return True
+        return opt_veh, opt_dist

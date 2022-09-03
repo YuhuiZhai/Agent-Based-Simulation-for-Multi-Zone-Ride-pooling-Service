@@ -16,6 +16,7 @@ class Taxi(Unit):
         # curr_dir stores the current direction of movement
         self.prev_dir, self.curr_dir = None, None
         self.turning_xy = None
+        self.status_record = [(self.zone.id, -1, -1, -1)]
     
     # return current position
     def location(self):
@@ -40,6 +41,7 @@ class Taxi(Unit):
             print("Error in assignment")
             return 
         passenger.status = 1
+        self.turning_xy = None
         s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status
         self.taxi_status = (s0, (s0, passenger), (s2, p2), (s3, p3)) 
         new_group_status = (s0, s0, s2, s3)
@@ -207,6 +209,8 @@ class Taxi(Unit):
     # movement function between zones
     def move(self, dt):
         s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status
+        if (s0, s1, s2, s3) != self.status_record[-1]:
+            self.status_record.append((s0, s1, s2, s3))
         status_request = None
         # idle status
         if s1 == -1 and s2 == -1 and s3 == -1:
@@ -239,7 +243,9 @@ class Taxi(Unit):
 
         # delivering status and intrazonal travel
         if s1 == -1 and s2 != -1 and s0 == s2:
-            reached = self.move_Manhattan(dt, (p2.dx, p2.dy))
+            if self.prev_dir == 0 or self.prev_dir == 3: xfirst = False
+            else: xfirst = True 
+            reached = self.move_Manhattan(dt, (p2.dx, p2.dy), xfirst)
             if reached:
                 status_request = self.deliver()
             return status_request

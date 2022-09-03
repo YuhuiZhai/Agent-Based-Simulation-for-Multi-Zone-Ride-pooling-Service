@@ -2,7 +2,6 @@ import heapq as hq
 import numpy as np
 from passenger import Passenger
 from city import City
-from city import Zone
 
 class EventQueue:
     def __init__(self, T:float, lmd_m, id, city:City):
@@ -23,16 +22,16 @@ class EventQueue:
         max_zone_id = self.city.n**2-1
         for i in range(max_zone_id+1):
             for j in range(max_zone_id+1):
-                t = 0
+                t, idx = 0, 0
                 lmd = lmd_m[i][j]
                 ozone, dzone = self.city.zones[i], self.city.zones[j]
-                idx = 0
                 while t < T:
                     dt = self.rng.exponential(scale=1/lmd)
                     t += dt
                     passenger = Passenger(t0=t, passenger_id=((i, j), idx, t), ozone=ozone, dzone=dzone)
                     self.insert(passenger)
                     idx += 1
+        return 
 
     def move(self, dt):
         self.clock += dt

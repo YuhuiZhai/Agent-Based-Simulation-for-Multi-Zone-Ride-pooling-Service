@@ -37,23 +37,15 @@ class Animation:
 
         animation = FuncAnimation(fig, update, blit=True, frames = range(0, len(self.fleet_info), compression))
         
-        if self.city.type_name == "Euclidean" or self.city.type_name == "Manhattan":  
-            plt.xlim(0, self.city.length)
-            plt.ylim(0, self.city.length)
-            for i in range(len(self.fleet_info[0])):
-                ax.text(4.75/6*self.city.length, (0.3+i*0.3)/6*self.city.length, fleet_status[i], color = fleet_color[i], fontsize = 10)
-            for i in range(len(self.passenger_info[0])):
-                ax.text(4.75/6*self.city.length, (0.3+len(self.fleet_info[0])*0.3+i*0.3)/6*self.city.length, passenger_status[i], color = passenger_color[i], fontsize = 10)
-            plt.xlabel("x (mile)")
-            plt.ylabel("y (mile)")
-
-        if self.city.type_name == "real-world":
-            ax.text(-88.1,40.3, "in service", color = 'r',  fontsize = 10)
-            ax.text(-88.1,40.3-0.002, "assigned", color = 'y', fontsize = 10)
-            ax.text(-88.1,40.3-0.004, "idle", color = 'g', fontsize = 10)
-            ax.text(-88.1,40.3-0.006, "passenger", color = 'b', fontsize = 10)
-            plt.xlabel("longitude")
-            plt.ylabel("latitude")      
+        plt.xlim(0, self.city.length)
+        plt.ylim(0, self.city.length)
+        for i in range(len(self.fleet_info[0])):
+            ax.text(4.75/6*self.city.length, (0.3+i*0.3)/6*self.city.length, fleet_status[i], color = fleet_color[i], fontsize = 10)
+        for i in range(len(self.passenger_info[0])):
+            ax.text(4.75/6*self.city.length, (0.3+len(self.fleet_info[0])*0.3+i*0.3)/6*self.city.length, passenger_status[i], color = passenger_color[i], fontsize = 10)
+        plt.xlabel("x (mile)")
+        plt.ylabel("y (mile)")
+      
 
         writergif = PillowWriter(fps) 
         if path == "":

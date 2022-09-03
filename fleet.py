@@ -48,6 +48,7 @@ class Fleet:
             status_request = self.vehicles[id].move(dt)
             self.changeVehStatus(status_request)
         self.clock += dt
+        return 
     
     # function for making animation
     def sketch_helper(self):

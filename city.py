@@ -54,7 +54,7 @@ class City:
 
     # function to split the city into n x n zones
     # If city was splitted before, this function will replace the city by a new one. 
-    def split(self, n:int, prob_matrix):
+    def split(self, n:int, prob_matrix=None):
         if prob_matrix == None:
             prob_matrix = [[(0.25, 0.25, 0.25, 0.25) for j in range(n)] for i in range(n)]
         self.n, self.l, self.prob_matrix = n, self.length/n, prob_matrix
