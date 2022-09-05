@@ -43,7 +43,7 @@ class City:
     # prob_matirx = [ (N_00,E_00,W_00,S_00), ... , (N_0n,E_0n,W_0n,S_0n)
     #                          ...                          ...     
     #                 (N_n0,E_n0,W_n0,S_n0), ... , (N_nn,E_nn,W_nn,S_nn)]
-    def __init__(self, length:float, max_v=18.0, n=1, prob_matrix=None):
+    def __init__(self, length:float, max_v=25.0, n=1, prob_matrix=None):
         self.length, self.max_v = length, max_v
         self.split(n, prob_matrix)
         # feasible zone is a dictionary storing Case 2 pair {key=(ozone_id, dzone_id) : value=[feasible zone id]}
