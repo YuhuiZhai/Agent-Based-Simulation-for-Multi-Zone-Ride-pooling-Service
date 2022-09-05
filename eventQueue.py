@@ -16,8 +16,8 @@ class EventQueue:
 
         # Initialize events info
         self.T, self.lmd_m, self.id, self.city, self.rng = T, lmd_m, id, city, np.random.default_rng(seed=2)
-        self.size = 0
         self.clock = 0
+        self.head_idx = 0
         
         max_zone_id = self.city.n**2-1
         for i in range(max_zone_id+1):
@@ -29,8 +29,11 @@ class EventQueue:
                     dt = self.rng.exponential(scale=1/lmd)
                     t += dt
                     passenger = Passenger(t0=t, passenger_id=((i, j), idx, t), ozone=ozone, dzone=dzone)
-                    self.insert(passenger)
+                    self.queue.append((t, passenger))
+                    self.record[passenger.id] = passenger
+                    self.sketch_dict[passenger.id] = passenger
                     idx += 1
+        self.queue.sort(key=lambda k : k[0])
         return 
 
     def move(self, dt):
@@ -59,21 +62,14 @@ class EventQueue:
         return len(self.queue) == 0
 
     def head(self):
-        p_id, p = self.queue[0]
+        p_id, p = self.queue[self.head_idx]
         return p_id, p
-
-    # insert a passenger to the list, the smaller the id, the greater the priority
-    def insert(self, passenger:Passenger):
-        self.size += 1
-        hq.heappush(self.queue, (passenger.id[2], passenger))
-        self.record[passenger.id] = passenger
-        self.sketch_dict[passenger.id] = passenger
 
     # pop the event with the minimum time 
     # return the popped time and event
     def dequeue(self):
-        self.size -= 1
-        p_id, p = hq.heappop(self.queue)
+        p_id, p = self.head()
+        self.head_idx += 1
         self.deq.append(p)
         return p_id, p
         

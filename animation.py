@@ -4,7 +4,7 @@ from matplotlib.animation import FuncAnimation
 from matplotlib.animation import PillowWriter
 
 class Animation:
-    def __init__(self, city:City, fleet_info:list, passenger_info:list, fleet_on = True, passenger_on = True):
+    def __init__(self, city:City, fleet_info:list, passenger_info:list):
         self.city = city
         self.fleet_info = fleet_info
         self.passenger_info = passenger_info

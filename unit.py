@@ -40,8 +40,8 @@ class Unit:
     
     # return whether one unit is out of boundary and which direction is out of boundary
     def out_of_boundary(self):
-        xout = abs(self.x - self.zone.center[0]) >= (self.zone.length/2)
-        yout = abs(self.y - self.zone.center[1]) >= (self.zone.length/2)
+        xout = (abs(self.x - self.zone.center[0]) >= (self.zone.length/2))
+        yout = (abs(self.y - self.zone.center[1]) >= (self.zone.length/2))
         out_dir = None
         if xout: out_dir = 0
         elif yout: out_dir = 1

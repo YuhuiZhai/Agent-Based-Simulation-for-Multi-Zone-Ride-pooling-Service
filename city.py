@@ -2,10 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 class Zone:
     # prob is the tuple of probalbility traveling towards N, E, W, S
-    def __init__(self, length=3.6, max_v=18.0, center=(0.5, 0.5), id=0, prob=(0.25, 0.25, 0.25, 0.25)):
+    def __init__(self, length=3.6, max_v=18.0, center=(0.5, 0.5), id=0):
         self.length, self.max_v, self.center, self.id = length, max_v, center, id
         self.rng = np.random.default_rng(seed=5)
-        self.prob = prob
 
     # set the center of the zone
     def set_center(self, new_center:tuple):
@@ -56,7 +55,7 @@ class City:
     # If city was splitted before, this function will replace the city by a new one. 
     def split(self, n:int, prob_matrix=None):
         if prob_matrix == None:
-            prob_matrix = [[(0.25, 0.25, 0.25, 0.25) for j in range(n)] for i in range(n)]
+            prob_matrix = [[(0.25, 0.25, 0.25, 0.25) for j in range(n**2)] for i in range(n**2)]
         self.n, self.l, self.prob_matrix = n, self.length/n, prob_matrix
         self.zone_matrix = []
         self.zones = {}
@@ -64,7 +63,7 @@ class City:
             self.zone_matrix.append([])
             for j in range(n):
                 center = ((j+0.5)*self.l, n*self.l-(i+0.5)*self.l)
-                zone = Zone(length=self.l, max_v=self.max_v, center=center, id=int(i*n+j), prob=prob_matrix[i][j])
+                zone = Zone(length=self.l, max_v=self.max_v, center=center, id=int(i*n+j))
                 zone.recordij((i, j))
                 self.zones[zone.id] = zone
                 self.zone_matrix[i].append(zone)

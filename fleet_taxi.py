@@ -2,13 +2,15 @@ from fleet import Fleet
 from city import City
 from taxi import Taxi
 from passenger import Passenger
-import math
+import heapq as hq
+import numpy as np
 
 class Taxifleet(Fleet):
     # fleet_m[i][j] = fleet_size
-    def __init__(self, fleet_m, id, city:City):
+    def __init__(self, fleet_m, id, city:City, T, rebalance_m=None):
         super().__init__(id)    
-        self.city = city
+        self.city, self.T, self.rebalance_m  = city, T, rebalance_m
+        self.rng = np.random.default_rng(seed=20)
         n = len(fleet_m)
         if n != city.n:
             print("Error in matrix dimension")
@@ -29,7 +31,8 @@ class Taxifleet(Fleet):
                     self.vehicles[veh.id] = veh 
                     self.vehs_group[idle_status].add(veh)
                     self.zone_group[zone.id][(-1, -1, -1)].add(veh)
-    
+        self.init_rebalance()
+
     # zone_move() replaces default move() 
     def zone_move(self, dt):
         for id in self.vehicles:
@@ -67,16 +70,16 @@ class Taxifleet(Fleet):
         return dist
     
     # convert status (s0, s1, s2, s3) to 0/1/2/3 (idle/assigned/in service/rebalancing)
-    def convertStatus(self, status):
-        (s0, s1, s2, s3) = status
+    def convertStatus(self, taxi_status):
+        (s0, (s1, p1), (s2, p2), (s3, p3)) = taxi_status
         # idle status
         if s1 == -1 and s2 == -1 and s3 == -1:
             return 0
         # assigned status
-        elif s1 != -1:
+        if s0 == s1 and p1 != None:
             return 1
         # in service status
-        elif s1 == -1 and s2 != -1:        
+        if s1 == -1 and s2 != -1:        
             return 2
         # rebalance status
         else:
@@ -88,13 +91,58 @@ class Taxifleet(Fleet):
         sketch_table = []
         for status in range(4):
             sketch_table.append([[], []])
-        for status in self.vehs_group:
-            converted = self.convertStatus(status)
-            for veh in self.vehs_group[status]:
-                sketch_table[converted][0].append(veh.location()[0])
-                sketch_table[converted][1].append(veh.location()[1])
+        for veh_id in self.vehicles:
+            veh = self.vehicles[veh_id]
+            taxi_status = veh.taxi_status
+            converted = self.convertStatus(taxi_status)
+            sketch_table[converted][0].append(veh.location()[0])
+            sketch_table[converted][1].append(veh.location()[1])
         return sketch_table
 
+    # initialization for rebalance 
+    # the pattern of rebalance_m should be:
+    #        [[b00, b01, ... b0k]
+    #          ...           ...
+    #         [bk0, bk1, ... bkk]
+    def init_rebalance(self):
+        if self.rebalance_m == None:
+            return 
+        # rebalance_info stores [(time to rebalance, origin i, destination j)]  
+        self.rebalance_info = []
+        self.rebalance_idx = 0
+        for i in range(len(self.rebalance_m)):
+            for j in range(len(self.rebalance_m[i])):
+                if i == j:
+                    continue
+                t = 0
+                bij = self.rebalance_m[i][j]
+                if bij == 0:
+                    continue
+                while t < self.T:
+                    dt = self.rng.exponential(scale=1/bij)
+                    t += dt
+                    self.rebalance_info.append((t, i, j))
+        self.rebalance_info.sort(key=lambda k : k[0])
+        return 
+
+    # rebalance idle taxi according to the rebalance matrix
+    def rebalance(self):
+        t, i, j = self.rebalance_info[self.rebalance_idx]
+        while t <= self.clock:
+            if self.rebalance_idx >= len(self.rebalance_info):
+                return 
+            idle_group = self.zone_group[i][(-1, -1, -1)]
+            for idle_taxi in idle_group:
+                status_request = idle_taxi.rebalance(self.city.getZone(j))
+                self.changeVehStatus(status_request)
+                self.changeZoneStatus(status_request)
+                break
+            self.rebalance_idx += 1
+            t, i, j = self.rebalance_info[self.rebalance_idx]
+        return 
+
+
+    # sevre a passenger by assigning the closet feasible taxi 
     def serve(self, passenger:Passenger):
         c_oxy, c_dxy = passenger.location()
         ozone, dzone = passenger.zone, passenger.target_zone
@@ -114,7 +162,7 @@ class Taxifleet(Fleet):
                         if dist < dist0:
                             opt_veh0, dist0 
                 # delivering status with one pax 
-                elif s1 == -1 and s2 != -1 and s3 == -1:
+                if s1 == -1 and s2 != -1 and s3 == -1:
                     for veh in self.zone_group[ozone.id][status]:
                         # feasible zone of Case 1 intra intra (p v)
                         if (ozone.id == s2) and \

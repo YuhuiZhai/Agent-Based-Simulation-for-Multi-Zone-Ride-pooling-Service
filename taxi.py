@@ -12,6 +12,7 @@ class Taxi(Unit):
         self.taxi_status = (zone.id, (-1, None), (-1, None), (-1, None))
         self.load = 0
         self.city = city
+        self.rng = np.random.default_rng(seed=10)
         # prev_dir stores the previous direction of movement, dir_dict stores available direction and prob
         # curr_dir stores the current direction of movement
         self.prev_dir, self.curr_dir = None, None
@@ -85,7 +86,7 @@ class Taxi(Unit):
     # rebalance the idle vehicle to a new zone
     def rebalance(self, zone:Zone):
         # taxi rebalanced should be idle (i, -1, -1, -1)
-        if self.taxi_status[1] != -1 or self.taxi_status[2] != (-1, None):
+        if self.status != (self.zone.id, -1, -1, -1):
             print("Error in rebalance")
             return 
         s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status
@@ -96,6 +97,7 @@ class Taxi(Unit):
     
     # make the taxi idle status
     def idle(self):
+        self.idle_position = None
         self.taxi_status = (self.zone.id, (-1, None), (-1, None), (-1, None))
         new_group_status = (self.zone.id, -1, -1, -1)
         status_request = self.changeStatusTo(new_group_status)
@@ -107,7 +109,6 @@ class Taxi(Unit):
         s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status
         self.taxi_status = (self.zone.id, (s1, p1), (s2, p2), (s3, p3))
         new_group_status = (self.zone.id, s1, s2, s3)
-
         status_request = self.changeStatusTo(new_group_status)
         return status_request
 
@@ -190,9 +191,10 @@ class Taxi(Unit):
             # two valid directions
             else:
                 dir1, dir2 = dir_list
-                p1, p2 = self.zone.prob[dir1], self.zone.prob[dir2]
+                prob = self.city.prob_matrix[self.zone.id][target_zone.id]
+                p1, p2 = prob[dir1], prob[dir2]
                 p1, p2 = p1/(p1+p2), p2/(p1+p2)
-                indicator = np.random.random()
+                indicator = self.rng.random()
                 if indicator <= p1:
                     chosen_dir = dir1
                 else:
@@ -215,16 +217,19 @@ class Taxi(Unit):
         # idle status
         if s1 == -1 and s2 == -1 and s3 == -1:
             return status_request
+
         # rebalance status and interzonal travel
-        if s1 != -1 and s0 != s1 and s2 == -1 and s3 == -1:
-            reached, status_request = self.move_toward(p1)
+        if s0 != s1 and p1 == None and s2 == -1 and s3 == -1:
+            reached, status_request = self.move_toward(dt, self.city.getZone(s1))
             return status_request 
 
         # rebalance status and intrazonal travel
-        if s1 != -1 and s0 == s1 and p1 == None and s2 == -1 and s3 == -1:
+        if s0 == s1 and p1 == None and s2 == -1 and s3 == -1:
             if self.idle_position == None:
                 self.idle_position = self.zone.generate_location()
-            reached = self.move_Manhattan(dt, self.idle_position)
+            if self.prev_dir == 0 or self.prev_dir == 3: xfirst = False
+            else: xfirst = True
+            reached = self.move_Manhattan(dt, self.idle_position, xfirst=xfirst)
             if reached:
                 status_request = self.idle()
             return status_request 
