@@ -20,6 +20,12 @@ class Passenger(Unit):
         self.t_end = None
         # ride sharing status can be either 0:caller or 1:seeker 
         self.rs_status = None
+        # recorded choices for passengers
+        self.dist_info = [0, 0, 0, 0, 0]
+
+    def update_dist_info(self, dist_info:list):
+        self.dist_info = dist_info
+        return 
 
     # return the trip distance from passenger's current location to the destination
     def dist(self):
@@ -31,3 +37,5 @@ class Passenger(Unit):
     def print(self):
         print(f"pos {(self.x, self.y)}, target pos {(self.dx, self.dy)}, zone {self.zone.id}, target zone{self.target_zone.id}")
         return 
+
+    

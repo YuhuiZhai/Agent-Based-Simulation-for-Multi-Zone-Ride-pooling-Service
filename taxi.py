@@ -41,7 +41,7 @@ class Taxi(Unit):
         if self.taxi_status[1] != (-1, None) or self.taxi_status[3] != (-1, None):
             print("Error in assignment")
             return 
-        passenger.status = 1
+        passenger.status, passenger.t_a = 1, self.clock
         self.turning_xy = None
         s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status
         self.taxi_status = (s0, (s0, passenger), (s2, p2), (s3, p3)) 
@@ -57,7 +57,7 @@ class Taxi(Unit):
             print("Error in pickup")
             return
         s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status
-        p1.status = 2
+        p1.status, p1.t_s = 2, self.clock
         pos = (self.x, self.y)
         self.turning_xy = None
         pfirst, psecond = self.dist_helper(pos, p1, p2)
@@ -77,7 +77,7 @@ class Taxi(Unit):
             print("Error in deliver")
             return 
         s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status   
-        p2.status = 3
+        p2.status, p2.t_end = 3, self.clock
         self.taxi_status = (s0, (s1, p1), (s3, p3), (-1, None))
         new_group_status = (s0, s1, s3, -1)
         status_request = self.changeStatusTo(new_group_status)
@@ -210,6 +210,7 @@ class Taxi(Unit):
 
     # movement function between zones
     def move(self, dt):
+        self.clock += dt
         s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status
         if (s0, s1, s2, s3) != self.status_record[-1]:
             self.status_record.append((s0, s1, s2, s3))

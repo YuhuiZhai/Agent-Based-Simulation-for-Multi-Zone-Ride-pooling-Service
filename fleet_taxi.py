@@ -147,6 +147,7 @@ class Taxifleet(Fleet):
         c_oxy, c_dxy = passenger.location()
         ozone, dzone = passenger.zone, passenger.target_zone
         opt_veh, opt_dist = None, None
+        dist_info = [0, 0, 0, 0, 0]
         # intrazonal caller
         if ozone.id == dzone.id:
             xlim1, ylim1, xlim2, ylim2 = self.city.feasibleZone_1(c_oxy, c_dxy, ozone.id)
@@ -160,7 +161,8 @@ class Taxifleet(Fleet):
                     for idle_veh in self.zone_group[ozone.id][status]:
                         dist = self.dist(idle_veh, passenger, 1)
                         if dist < dist0:
-                            opt_veh0, dist0 
+                            opt_veh0, dist0 = idle_veh, dist
+
                 # delivering status with one pax 
                 if s1 == -1 and s2 != -1 and s3 == -1:
                     for veh in self.zone_group[ozone.id][status]:
@@ -176,6 +178,9 @@ class Taxifleet(Fleet):
                             dist = self.dist(veh, passenger, 1)
                             if dist < dist3:
                                 opt_veh3, dist3 = veh, dist
+            dist_info[0] = dist0 if dist0 != 2*self.city.length else 0
+            dist_info[1] = dist1 if dist1 != 2*self.city.length else 0
+            dist_info[3] = dist3 if dist3 != 2*self.city.length else 0
             opt_veh, opt_dist = min([(opt_veh0, dist0), (opt_veh1, dist1), (opt_veh3, dist3)], key=lambda k : k[1])
         else:
             fz = self.city.feasibleZone_2(ozone.id, dzone.id)
@@ -204,12 +209,18 @@ class Taxifleet(Fleet):
                             dist = self.dist(veh, passenger, 1)
                             if dist < dist4:
                                 opt_veh4, dist4 = veh, dist
-
+            dist_info[0] = dist0 if dist0 != 2*self.city.length else 0
+            dist_info[2] = dist2 if dist2 != 2*self.city.length else 0
+            dist_info[4] = dist4 if dist4 != 2*self.city.length else 0
             opt_veh, opt_dist = min([(opt_veh0, dist0), (opt_veh2, dist2), (opt_veh4, dist4)], key=lambda k : k[1])
         
         if opt_veh is None:
             passenger.status = -1
             return opt_veh, opt_dist
+        if opt_veh == opt_veh0:
+            passenger.rs_status = 0
+        else: passenger.rs_status = 1
+        passenger.update_dist_info(dist_info)
         status_request = opt_veh.assign(passenger)
         self.changeVehStatus(status_request)
         self.changeZoneStatus(status_request)

@@ -40,6 +40,29 @@ class EventQueue:
         self.clock += dt
         return 
 
+    def empty(self):
+        return len(self.queue) == 0
+
+    def head(self):
+        p_id, p = self.queue[self.head_idx]
+        return p_id, p
+
+    # pop the event with the minimum time 
+    # return the popped time and event
+    def dequeue(self):
+        p_id, p = self.head()
+        self.head_idx += 1
+        self.deq.append(p)
+        return p_id, p
+    
+    def dist_helper(self):
+        dist_infos = {(i, j) : [] for i in range(self.city.n**2) for j in range(self.city.n**2)} 
+        for q in self.queue:
+            p = q[1]
+            pi, pj, dist_info = p.zone.id, p.target_zone.id, p.dist_info
+            dist_infos[(pi, pj)].append(dist_info)
+        return dist_infos
+
     # sketching_helper function
     def sketch_helper(self):
         px, py, popped_list = [], [], []
@@ -57,23 +80,6 @@ class EventQueue:
         for id in popped_list:
             self.sketch_dict.pop(id, None)
         return [px, py]
-
-    def empty(self):
-        return len(self.queue) == 0
-
-    def head(self):
-        p_id, p = self.queue[self.head_idx]
-        return p_id, p
-
-    # pop the event with the minimum time 
-    # return the popped time and event
-    def dequeue(self):
-        p_id, p = self.head()
-        self.head_idx += 1
-        self.deq.append(p)
-        return p_id, p
-        
-
 
 
 
