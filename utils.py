@@ -1,5 +1,5 @@
 import pandas as pd
-
+import matplotlib.pyplot as plt
 def onplotdist(node_1, node_2):
         lo1 = node_1.x
         la1 = node_1.y
@@ -67,3 +67,19 @@ def func(l:list, dx:float):
                 return distri
         distri.append((left, left+dx, count))
         left += dx
+
+def testDistribution(city, test:list):
+    city.sketch()
+    px, py = test[0]
+    pdx, pdy = test[1]
+    xlim1, ylim1 = test[2]
+    xlim2, ylim2 = test[3]
+    plt.plot(px, py, 'ro')
+    plt.plot(pdx, pdy, 'r*')
+    plt.fill_between([px, pdx], [py, py], [pdy, pdy], color="None", hatch="/", edgecolor="r")
+    for i in range(4, len(test)):
+        x, y = test[i]
+        plt.plot(x, y, 'go', markersize=3)
+    plt.show()
+    plt.savefig(f"ratio 0_over_{len(test)-4}.svg")
+

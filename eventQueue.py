@@ -15,7 +15,7 @@ class EventQueue:
         self.sketch_dict = {}
 
         # Initialize events info
-        self.T, self.lmd_m, self.id, self.city, self.rng = T, lmd_m, id, city, np.random.default_rng(seed=2)
+        self.T, self.lmd_m, self.id, self.city, self.rng = T, lmd_m, id, city, np.random.default_rng(seed=np.random.randint(100))
         self.clock = 0
         self.head_idx = 0
         

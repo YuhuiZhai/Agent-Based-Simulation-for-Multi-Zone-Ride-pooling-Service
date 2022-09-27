@@ -1,4 +1,5 @@
 from city import Zone
+import random
 
 class Unit:
     def __init__(self, id, zone:Zone, init_status):
@@ -8,6 +9,7 @@ class Unit:
         self.x, self.y = self.zone.generate_location()
         self.idle_position = None
         self.status = init_status
+        self.prev_status = None
     
     # change self status to new status, and also return message to upper level
     def changeStatusTo(self, new_status):
@@ -19,10 +21,11 @@ class Unit:
         return (num > 0) - (num < 0)
 
     # move from origin (x, y) to destination (x, y) using Manhattan space
-    def move_Manhattan(self, dt:float, dxy:tuple, xfirst=True):
+    def move_Manhattan(self, dt:float, dxy:tuple, xfirst=True, r=False):
         dx, dy = dxy[0], dxy[1]
-        # xmove = random.randint(0, 1)
         xmove = xfirst
+        if r:
+            xmove = random.randint(0, 1)    
         ymove = 1 - xmove
         if (self.x == dx):
             xmove, ymove = 0, 1

@@ -22,10 +22,10 @@ class Animation:
         self.city.sketch()
         fleet_list, passenger_list = [], []
         for i in range(len(self.fleet_info[0])):
-            ln, = plt.plot([], [], fleet_color[i]+fleet_shape, markersize = 7) 
+            ln, = plt.plot([], [], fleet_color[i]+fleet_shape, markersize = 2) 
             fleet_list.append(ln)
         for i in range(len(self.passenger_info[0])):
-            ln, = plt.plot([], [], passenger_color[i]+passenger_shape, markersize = 7) 
+            ln, = plt.plot([], [], passenger_color[i]+passenger_shape, markersize = 2) 
             passenger_list.append(ln)
         
         def update(frame):

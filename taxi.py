@@ -12,13 +12,15 @@ class Taxi(Unit):
         self.taxi_status = (zone.id, (-1, None), (-1, None), (-1, None))
         self.load = 0
         self.city = city
-        self.rng = np.random.default_rng(seed=10)
+        self.rng = np.random.default_rng(seed=np.random.randint(100))
         # prev_dir stores the previous direction of movement, dir_dict stores available direction and prob
         # curr_dir stores the current direction of movement
         self.prev_dir, self.curr_dir = None, None
         self.turning_xy = None
         self.status_record = [(self.zone.id, -1, -1, -1)]
-    
+        self.assigned_dist_record = []
+        self.dist = 0
+
     # return current position
     def location(self):
         return (self.x, self.y)
@@ -41,6 +43,7 @@ class Taxi(Unit):
         if self.taxi_status[1] != (-1, None) or self.taxi_status[3] != (-1, None):
             print("Error in assignment")
             return 
+        self.assigned_dist_record.append(abs(self.x-passenger.x) + abs(self.y - passenger.y))
         passenger.status, passenger.t_a = 1, self.clock
         self.turning_xy = None
         s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status
@@ -87,9 +90,10 @@ class Taxi(Unit):
     def rebalance(self, zone:Zone):
         # taxi rebalanced should be idle (i, -1, -1, -1)
         if self.status != (self.zone.id, -1, -1, -1):
-            print("Error in rebalance")
+            print("Error in rebalance status")
             return 
         s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status
+        self.idle_position = zone.generate_location()
         self.taxi_status = (s0, (zone.id, None), (-1, None), (-1, None))
         new_group_status = (s0, zone.id, -1, -1)
         status_request = self.changeStatusTo(new_group_status)
@@ -210,6 +214,7 @@ class Taxi(Unit):
 
     # movement function between zones
     def move(self, dt):
+        self.prev_status = self.status
         self.clock += dt
         s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status
         if (s0, s1, s2, s3) != self.status_record[-1]:
@@ -218,20 +223,16 @@ class Taxi(Unit):
         # idle status
         if s1 == -1 and s2 == -1 and s3 == -1:
             return status_request
+        
+        self.dist += dt*self.speed     
 
         # rebalance status and interzonal travel
-        if s0 != s1 and p1 == None and s2 == -1 and s3 == -1:
-            reached, status_request = self.move_toward(dt, self.city.getZone(s1))
-            return status_request 
-
-        # rebalance status and intrazonal travel
-        if s0 == s1 and p1 == None and s2 == -1 and s3 == -1:
+        if s0 != s1 and s1 != -1 and p1 == None and s2 == -1 and s3 == -1:
             if self.idle_position == None:
-                self.idle_position = self.zone.generate_location()
-            if self.prev_dir == 0 or self.prev_dir == 3: xfirst = False
-            else: xfirst = True
-            reached = self.move_Manhattan(dt, self.idle_position, xfirst=xfirst)
+                print("Error in rebalance")
+            reached = self.move_Manhattan(dt, self.idle_position, r=True)
             if reached:
+                self.zone = self.city.getZone(s1)
                 status_request = self.idle()
             return status_request 
 

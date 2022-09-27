@@ -2,9 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 class Zone:
     # prob is the tuple of probalbility traveling towards N, E, W, S
-    def __init__(self, length=3.6, max_v=18.0, center=(0.5, 0.5), id=0):
+    def __init__(self, length=5, max_v=25.0, center=(0.5, 0.5), id=0):
         self.length, self.max_v, self.center, self.id = length, max_v, center, id
-        self.rng = np.random.default_rng(seed=5)
+        self.rng = np.random.default_rng(seed=np.random.randint(100))
 
     # set the center of the zone
     def set_center(self, new_center:tuple):
@@ -188,14 +188,16 @@ class City:
     def feasibleZone_4(self, c_oxy:tuple, c_ozone_id:int, c_dzone_id:int):
         c_ozone, c_dzone = self.zones[c_ozone_id], self.zones[c_dzone_id]
         xdir, ydir = self.dir(c_ozone.center, c_dzone.center)
+        diag = False
         if xdir != 0 and ydir != 0:
+            diag = True
             xlim, ylim = [c_oxy[0], c_ozone.center[0]+xdir*self.l/2], [c_oxy[1], c_ozone.center[1]+ydir*self.l/2]
         elif xdir == 0:
             xlim, ylim = [c_ozone.center[0]-self.l/2, c_ozone.center[0]+self.l/2], [c_oxy[1], c_ozone.center[1] + ydir*self.l/2]    
         else:
             xlim, ylim = [c_oxy[0], c_ozone.center[0]+xdir*self.l/2], [c_ozone.center[1]-self.l/2, c_ozone.center[1]+self.l/2]        
         xlim.sort(); ylim.sort()
-        return xlim, ylim
+        return xlim, ylim, diag
 
     def getZone(self, zone_id:int):
         return self.zones[zone_id]
