@@ -10,6 +10,8 @@ class Unit:
         self.idle_position = None
         self.status = init_status
         self.prev_status = None
+        # the direction by impulsion model
+        self.dir = None
     
     # change self status to new status, and also return message to upper level
     def changeStatusTo(self, new_status):
@@ -23,14 +25,20 @@ class Unit:
     # move from origin (x, y) to destination (x, y) using Manhattan space
     def move_Manhattan(self, dt:float, dxy:tuple, xfirst=True, r=False):
         dx, dy = dxy[0], dxy[1]
-        xmove = xfirst
-        if r:
-            xmove = random.randint(0, 1)    
-        ymove = 1 - xmove
-        if (self.x == dx):
-            xmove, ymove = 0, 1
-        elif (self.y == dy):
-            xmove, ymove = 1, 0
+        # follow the direction by impulsion model if there is one
+        if self.dir != None:
+            xmove, ymove = self.dir   
+        else:
+            xmove = xfirst
+            if r:
+                xmove = random.randint(0, 1)    
+            ymove = 1 - xmove
+            if (self.x == dx and self.y == dy):
+                xmove, ymove = 0, 0
+            elif (self.y == dy):
+                xmove, ymove = 1, 0
+            elif (self.x == dx):
+                xmove, ymove = 0, 1
         xdir = self.sign(dx-self.x)
         ydir = self.sign(dy-self.y)
         self.x += xdir * xmove* dt * self.speed

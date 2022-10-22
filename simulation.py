@@ -23,12 +23,12 @@ class Simulation:
         self.status_record = {i:{} for i in range(self.city.n**2)}
         self.idx = 0
 
-        # temporary testing
-        self.ni0i0 = {}
         # record of vehicle positions
         self.avg_position = {}
         # record of flow transition, representing [a, b, c, d, g, p]
         self.flow_table = [{}, {}, {}, {}, {}, {}]
+        # record of position of status i0i0 in each zone 
+        self.pos_i0i0 = {i:[[], []] for i in range(self.city.n**2)}
     
     def move(self, res:float):
         self.clock += res
@@ -48,6 +48,7 @@ class Simulation:
                 self.events.dequeue()
                 p_id, p = self.events.head()
             self.fleet.rebalance()
+            # self.fleet.super_reallocation()
             self.move(res)
             self.update()
         return 
@@ -60,6 +61,17 @@ class Simulation:
                 self.status_record[zone_id][status].append(len(self.fleet.zone_group[zone_id][status]))
         return
     
+    # update avg position of status i0i0 vehicle
+    def update_avg_position_i0i0(self):
+        avg_pos = self.fleet.avg_pos_i0i0()
+        for i in self.pos_i0i0:
+            if avg_pos[i] == None:
+                continue
+            x, y = avg_pos[i]
+            self.pos_i0i0[i][0].append(x)
+            self.pos_i0i0[i][1].append(y)
+        return 
+
     # add one to the status number in the flow_table
     def update_flow_table(self, type:int, status):
         if status == None:
@@ -148,8 +160,10 @@ class Simulation:
         ix += ix; iy += iy; interx += interx; intery += intery; 
         self.fleet_info.append([[ax, ay], [sx, sy], [ix, iy], [interx, intery]])
         self.passenger_info.append([[px, py]])
+        self.update_state_transition()
         self.update_pos()
         self.update_flow()
+        self.update_avg_position_i0i0()
         self.idx += 1
         return 
 
@@ -219,13 +233,26 @@ class Simulation:
             ratio_m.append(avg)
         print(ratio_m)
         return ratio_m
+
+    def export_avg_position_i0i0(self):
+        result = []
+        for i in self.pos_i0i0:
+            avgx = sum(self.pos_i0i0[i][0]) / len(self.pos_i0i0[i][0])
+            avgy = sum(self.pos_i0i0[i][1]) / len(self.pos_i0i0[i][1])
+            result.append((avgx, avgy))       
+        print(result)
+        return result
     
     def export_valid_i0i0_4(self):
         ratio_m = []
         ratio_m_diag = []
+        distx, disty = [], []
+
         for zone_id in self.fleet.valid_i0i0s_4:
             temp = []
-            for i in self.fleet.valid_i0i0s_4[zone_id]:
+            for idx, i in enumerate(self.fleet.valid_i0i0s_4[zone_id]):
+                if idx <= 1/3*len(self.fleet.valid_i0i0s_4[zone_id]):
+                    continue
                 valid_num, total_num = i
                 if total_num <= 0 :
                     continue
@@ -236,6 +263,8 @@ class Simulation:
         for zone_id in self.fleet.valid_i0i0s_4_diag:
             temp = []
             for i in self.fleet.valid_i0i0s_4_diag[zone_id]:
+                if idx <= 1/3*len(self.fleet.valid_i0i0s_4_diag[zone_id]):
+                    continue
                 valid_num, total_num = i
                 if total_num <= 0 :
                     continue
@@ -272,20 +301,20 @@ class Simulation:
         worksheets = []
         for i in range(6):
             worksheet0.write(0, i*2, f"{temp[i]}_xxxx")
-            worksheet = workbook.add_worksheet(temp[i])
-            worksheet.write(0, 0, "time")
-            for j in range(self.idx):
-                worksheet.write(j+1, 0, j*self.res)
+            # worksheet = workbook.add_worksheet(temp[i])
+            # worksheet.write(0, 0, "time")
+            # for j in range(self.idx):
+            #     worksheet.write(j+1, 0, j*self.res)
             flows = self.flow_table[i]
             for j, status in enumerate(flows):
                 worksheet0.write(j+1, i*2, f"{temp[i]}_{status}")
                 worksheet0.write(j+1, i*2+1, sum(flows[status])/self.idx/self.res)
-                worksheet.write(0, j+1, f"{temp[i], status}")
-                for k in range(self.idx):
-                    if k >= len(flows[status]):
-                        worksheet.write(k+1, j+1, 0)
-                    else:
-                        worksheet.write(k+1, j+1, flows[status][k])
+                # worksheet.write(0, j+1, f"{temp[i], status}")
+                # for k in range(self.idx):
+                #     if k >= len(flows[status]):
+                #         worksheet.write(k+1, j+1, 0)
+                #     else:
+                #         worksheet.write(k+1, j+1, flows[status][k])
         workbook.close()
         return
 
@@ -339,6 +368,8 @@ class Simulation:
         for info in self.events.queue:
             p = info[1]
             if p.status != 3:
+                continue
+            if p.t_start <= self.T*1/3:
                 continue
             self.traveling_ts[p.zone.id][p.target_zone.id][p.rs_status].append(p.t_end - p.t_start)
         workbook = xw.Workbook(f"{self.fleet_m}_passenger_time.xlsx")

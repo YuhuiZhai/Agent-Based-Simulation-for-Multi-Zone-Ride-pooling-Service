@@ -3,6 +3,7 @@ from city import City
 from taxi import Taxi
 from passenger import Passenger
 import numpy as np
+import math
 
 class Taxifleet(Fleet):
     def __init__(self, fleet_m, id, city:City, T, rebalance_m=None):
@@ -34,21 +35,17 @@ class Taxifleet(Fleet):
         self.valid_i0i0s_4 = {i:[] for i in range(self.city.n**2)}
         self.valid_i0i0s_4_diag = {i:[] for i in range(self.city.n**2)}
         self.test = []
+        self.des_dist = {i:[] for i in range(4)}
         
-
     # zone_move() replaces default move() 
     def zone_move(self, dt):
         for id in self.vehicles:
             status_request = self.vehicles[id].move(dt)
             self.changeVehStatus(status_request)
             self.changeZoneStatus(status_request)
+        self.impulse_i000()
         self.clock += dt
         return 
-    
-    def count(self, status:tuple):
-        if status not in self.vehs_group:
-            return -1
-        return len(self.vehs_group[status])
 
     # change veh's status from status1 to status2 
     # the input is the same as changeVehStatus
@@ -76,36 +73,19 @@ class Taxifleet(Fleet):
         dist = i1*(abs(vehicle.x - passenger.x) + abs(vehicle.y - passenger.y)) \
             +  i2*(abs(passenger.x - passenger.dx) + abs(passenger.y - passenger.dy))
         return dist
-    
-    # convert status (s0, s1, s2, s3) to 0/1/2/3 (idle/assigned/in service/rebalancing)
-    def convertStatus(self, taxi_status):
-        (s0, (s1, p1), (s2, p2), (s3, p3)) = taxi_status
-        # idle status
-        if s1 == -1 and s2 == -1 and s3 == -1:
-            return 0
-        # assigned status
-        if s0 == s1 and p1 != None:
-            return 1
-        # in service status
-        if s1 == -1 and s2 != -1:        
-            return 2
-        # rebalance status
-        if s0 != s1 and p1 == None:
-            return 3
-        
-    # function to return location of each status group
-    def sketch_helper(self):
-        # key is status, value is location list
-        sketch_table = []
-        for status in range(4):
-            sketch_table.append([[], []])
-        for veh_id in self.vehicles:
-            veh = self.vehicles[veh_id]
-            taxi_status = veh.taxi_status
-            converted = self.convertStatus(taxi_status)
-            sketch_table[converted][0].append(veh.location()[0])
-            sketch_table[converted][1].append(veh.location()[1])
-        return sketch_table
+
+    # return the avg position of status i0i0 vehicle in each zone
+    def avg_pos_i0i0(self):
+        avg_pos = []
+        for zone_id in self.zone_group:
+            if (-1, zone_id, -1) not in self.zone_group[zone_id] or len(self.zone_group[zone_id][(-1, zone_id, -1)]) == 0:
+                avg_pos.append(None)
+                continue
+            group_i0i0 = self.zone_group[zone_id][(-1, zone_id, -1)]
+            avgx = sum([veh.x for veh in group_i0i0]) / len(group_i0i0)
+            avgy = sum([veh.y for veh in group_i0i0]) / len(group_i0i0)
+            avg_pos.append((avgx, avgy))
+        return avg_pos
 
     # initialization for rebalance 
     # the pattern of rebalance_m should be:
@@ -135,6 +115,8 @@ class Taxifleet(Fleet):
 
     # rebalance idle taxi according to the rebalance matrix
     def rebalance(self):
+        if self.rebalance_m == None:
+            return 
         t, i, j = self.rebalance_info[self.rebalance_idx]
         while t <= self.clock:
             if self.rebalance_idx >= len(self.rebalance_info):
@@ -148,7 +130,112 @@ class Taxifleet(Fleet):
             self.rebalance_idx += 1
             t, i, j = self.rebalance_info[self.rebalance_idx]
         return 
+    
+    # alien technology, reallocate idle vehicles in 1 sec, changing veh's x and y 
+    def super_reallocation(self):
+        for zone_id in self.zone_group:
+            idle_vehs = self.zone_group[zone_id][(-1, -1, -1)]
+            for idle_veh in idle_vehs:
+                idle_veh.x, idle_veh.y = self.city.getZone(zone_id).generate_location()
+        return 
+    
+    def sign(self, num):
+        num = float(num)
+        return (num > 0) - (num < 0)
+    
+    # force acted on veh1 by veh2
+    def force(self, veh1:Taxi, veh2:Taxi):
+        def f(dist):
+            maxdist = self.city.l
+            if dist >= maxdist:
+                return 0
+            f_mag = 10 * (maxdist - dist)
+            return f_mag
+        x1, y1 = veh1.x, veh1.y
+        x2, y2 = veh2.x, veh2.y
+        forcevec = np.array([self.sign(x1-x2)*f(abs(x1-x2)), self.sign(y1-y2)*f(abs(y1-y2))])
+        return forcevec
 
+    # boundary force of the taxi when close to the boundary with threshold delta
+    def force_boundary(self, veh:Taxi, delta=1):
+        M = 10**6
+        cx, cy = veh.zone.center
+        x, y = veh.x, veh.y
+        xdir, ydir = self.sign(cx-x), self.sign(cy-y) 
+        forcevec = np.array([M*((self.city.l/2-abs(cx-x))<delta)*xdir, M*(self.city.l/2-abs(cy-y)<delta)*ydir]) 
+        return forcevec
+    
+    def computeP(self):
+        P = 0
+        for i in range(self.city.n**2):
+            P += self.count()
+            for j in range(self.city.n**2):
+                if j == i: 
+                    continue
+        return 
+
+    def impulse_i000(self):
+        for zone_id in self.zone_group:
+            zone = self.zone_group[zone_id]
+            i000 = (-1, -1, -1)
+            if i000 not in zone:
+                continue
+            vehs_i000 = zone[i000]
+            for veh1 in vehs_i000:
+                impulsion = np.array([0.0, 0.0])
+                for veh2 in vehs_i000:
+                    if veh1.id == veh2.id:
+                        continue
+                    f = self.force(veh1, veh2)
+                    impulsion += f
+                # impulsion += self.force_boundary(veh1)
+                alpha, beta = abs(impulsion[0])*(abs(impulsion[0])>1000), abs(impulsion[1])*(abs(impulsion[1])>1000)
+                if alpha == 0 and beta == 0:
+                    veh1.dir = None
+                elif alpha > beta:
+                    veh1.dir = (self.sign(impulsion[0]), 0)
+                else:
+                    veh1.dir = (0, self.sign(impulsion[1]))
+        return 
+
+    # define the direction of movement based on impulsion model
+    def impulse_i0i0(self):
+        for zone_id in self.zone_group:
+            zone = self.zone_group[zone_id]
+            i0i0 = (-1, zone_id, -1)
+            if i0i0 not in zone:
+                continue
+            vehs_i0i0 = zone[i0i0]
+            for veh1 in vehs_i0i0:
+                impulsion = np.array([0.0, 0.0])
+                x1, y1 = veh1.x, veh1.y
+                dx1, dy1 = veh1.taxi_status[2][1].dx, veh1.taxi_status[2][1].dy
+                od = np.array([dx1-x1, dy1-y1])
+                if od[0] == 0 or od[1] == 0:
+                    veh1.dir == None
+                    continue
+                count = 0
+                for veh2 in vehs_i0i0:
+                    # if count > len(vehs_i0i0)/6:
+                        # break
+                    if veh1.id == veh2.id:
+                        continue
+                    x2, y2 = veh2.x, veh2.y
+                    c = 100
+                    oo = np.array([self.sign(x1-x2)*self.force(abs(x1-x2)), self.sign(y1-y2)*self.force(abs(y1-y2))])
+                    impulsion += oo
+                    count += 1
+                alpha, beta = impulsion[0]/self.sign(od[0]), impulsion[1]/self.sign(od[1]) 
+                if alpha > beta:
+                    veh1.dir = (1, 0)
+                else:
+                    veh1.dir = (0, 1)
+        return 
+
+    def count(self, status:tuple):
+        if status not in self.vehs_group:
+            return -1
+        return len(self.vehs_group[status])
 
     # sevre a passenger by assigning the closet feasible taxi 
     def serve(self, passenger:Passenger):
@@ -217,28 +304,29 @@ class Taxifleet(Fleet):
                         if dist < dist0:
                             opt_veh0, dist0 = idle_veh, dist
 
-                elif s1 == -1 and s2 != -1 and s3 == -1:
-                    valid_i0i0 = 0
-                    valid_i0i0_diag = 0
+                elif s1 == -1 and s2 != -1 and s2 != ozone.id and s3 == -1:
                     for veh in self.zone_group[ozone.id][status]:
-                        p2 = veh.taxi_status[2][1]
-                        pdx, pdy = p2.dx, p2.dy
-                        # feasible zone of Case 2 inter inter (p v)
+                    # feasible zone of Case 2 inter inter (p v)
                         if ozone.id != s2 and s2 in fz:  
                             dist = self.dist(veh, passenger, 1)
                             if dist < dist2:
                                 opt_veh2, dist2 = veh, dist
+
+                elif s1 == -1 and s2 == ozone.id and s3 == -1:
+                    count = 0
+                    for veh in self.zone_group[ozone.id][status]:
+                        p2 = veh.taxi_status[2][1]
+                        pdx, pdy = p2.dx, p2.dy             
                         # feasible zone of Case 4 inter intra (p v)
-                        elif ozone.id == s2 and \
-                            (xlim[0] <= pdx and pdx <= xlim[1] and ylim[0] <= pdy and pdy <= ylim[1]):
-                            if diag: valid_i0i0_diag += 1
-                            else: valid_i0i0 += 1
+                        if (xlim[0] <= pdx and pdx <= xlim[1] and ylim[0] <= pdy and pdy <= ylim[1]):
+                            count += 1
                             dist = self.dist(veh, passenger, 1)
                             if dist < dist4:
                                 opt_veh4, dist4 = veh, dist
-                    if ozone.id == s2:
-                        self.valid_i0i0s_4[ozone.id].append([valid_i0i0, self.count((ozone.id, -1, ozone.id, -1))])
-                        self.valid_i0i0s_4_diag[ozone.id].append([valid_i0i0_diag, self.count((ozone.id, -1, ozone.id, -1))])
+                    if diag:
+                        self.valid_i0i0s_4_diag[ozone.id].append([count, self.count((ozone.id, -1, ozone.id, -1))])
+                    else:
+                        self.valid_i0i0s_4[ozone.id].append([count, self.count((ozone.id, -1, ozone.id, -1))])
 
             dist_info[0] = dist0 if dist0 != 2*self.city.length else 0
             dist_info[2] = dist2 if dist2 != 2*self.city.length else 0
@@ -257,3 +345,33 @@ class Taxifleet(Fleet):
         self.changeVehStatus(status_request)
         self.changeZoneStatus(status_request)
         return opt_veh, opt_dist, prev_status
+
+    # convert status (s0, s1, s2, s3) to 0/1/2/3 (idle/assigned/in service/rebalancing)
+    def convertStatus(self, taxi_status):
+        (s0, (s1, p1), (s2, p2), (s3, p3)) = taxi_status
+        # idle status
+        if s1 == -1 and s2 == -1 and s3 == -1:
+            return 0
+        # assigned status
+        if s0 == s1 and p1 != None:
+            return 1
+        # in service status
+        if s1 == -1 and s2 != -1:        
+            return 2
+        # rebalance status
+        if s0 != s1 and p1 == None:
+            return 3
+        
+    # function to return location of each status group
+    def sketch_helper(self):
+        # key is status, value is location list
+        sketch_table = []
+        for status in range(4):
+            sketch_table.append([[], []])
+        for veh_id in self.vehicles:
+            veh = self.vehicles[veh_id]
+            taxi_status = veh.taxi_status
+            converted = self.convertStatus(taxi_status)
+            sketch_table[converted][0].append(veh.location()[0])
+            sketch_table[converted][1].append(veh.location()[1])
+        return sketch_table

@@ -24,7 +24,7 @@ class Taxi(Unit):
     # return current position
     def location(self):
         return (self.x, self.y)
-        
+    
     # helper function to compare the distance of passengers'destination relative to a position
     # p1 is assigned passenger, p2 is compared passenger (can be None)
     def dist_helper(self, pos:tuple, p1:Passenger, p2:Passenger):
@@ -46,6 +46,7 @@ class Taxi(Unit):
         self.assigned_dist_record.append(abs(self.x-passenger.x) + abs(self.y - passenger.y))
         passenger.status, passenger.t_a = 1, self.clock
         self.turning_xy = None
+        self.dir = None
         s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status
         self.taxi_status = (s0, (s0, passenger), (s2, p2), (s3, p3)) 
         new_group_status = (s0, s0, s2, s3)
@@ -81,6 +82,7 @@ class Taxi(Unit):
             return 
         s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status   
         p2.status, p2.t_end = 3, self.clock
+        self.dir = None
         self.taxi_status = (s0, (s1, p1), (s3, p3), (-1, None))
         new_group_status = (s0, s1, s3, -1)
         status_request = self.changeStatusTo(new_group_status)
@@ -92,6 +94,7 @@ class Taxi(Unit):
         if self.status != (self.zone.id, -1, -1, -1):
             print("Error in rebalance status")
             return 
+        self.dir = None
         s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status
         self.idle_position = zone.generate_location()
         self.taxi_status = (s0, (zone.id, None), (-1, None), (-1, None))
@@ -102,6 +105,7 @@ class Taxi(Unit):
     # make the taxi idle status
     def idle(self):
         self.idle_position = None
+        self.dir = None
         self.taxi_status = (self.zone.id, (-1, None), (-1, None), (-1, None))
         new_group_status = (self.zone.id, -1, -1, -1)
         status_request = self.changeStatusTo(new_group_status)
@@ -222,6 +226,9 @@ class Taxi(Unit):
         status_request = None
         # idle status
         if s1 == -1 and s2 == -1 and s3 == -1:
+            if self.dir != None:
+                dx, dy = self.x + self.city.l*self.dir[0], self.y + self.city.l*self.dir[1]
+                self.move_Manhattan(dt, (dx, dy))
             return status_request
         
         self.dist += dt*self.speed     
@@ -253,6 +260,7 @@ class Taxi(Unit):
             if self.prev_dir == 0 or self.prev_dir == 3: xfirst = False
             else: xfirst = True 
             reached = self.move_Manhattan(dt, (p2.dx, p2.dy), xfirst)
+            # reached = self.move_Manhattan(dt, (p2.dx, p2.dy), r=True)
             if reached:
                 status_request = self.deliver()
             return status_request
