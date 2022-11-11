@@ -6,9 +6,9 @@ import numpy as np
 import math
 
 class Taxifleet(Fleet):
-    def __init__(self, fleet_m, id, city:City, T, rebalance_m=None):
+    def __init__(self, fleet_m, id, city:City, dt, T, rebalance_m=None):
         super().__init__(id)    
-        self.city, self.T, self.rebalance_m  = city, T, rebalance_m
+        self.city, self.dt, self.T, self.rebalance_m  = city, dt, T, rebalance_m
         self.rng = np.random.default_rng(seed=np.random.randint(100))
         n = len(fleet_m)
         if n != city.n:
@@ -20,7 +20,7 @@ class Taxifleet(Fleet):
         # assign taxi to each zone
         for i in range(n):
             for j in range(n):
-                fleet_size = fleet_m[i][j]
+                fleet_size = int(fleet_m[i][j])
                 zone = city.zone_matrix[i][j]
                 idle_status = (zone.id, -1, -1, -1)
                 self.addVehGroup(idle_status)
@@ -43,7 +43,7 @@ class Taxifleet(Fleet):
             status_request = self.vehicles[id].move(dt)
             self.changeVehStatus(status_request)
             self.changeZoneStatus(status_request)
-        self.impulse_i000()
+        # self.impulse_i000()
         self.clock += dt
         return 
 
@@ -139,40 +139,59 @@ class Taxifleet(Fleet):
                 idle_veh.x, idle_veh.y = self.city.getZone(zone_id).generate_location()
         return 
     
+    def computeP(self):
+        P = 0
+        for i in range(self.city.n**2):
+            ii00, i0i0, iii0, i0ii = (i,i,-1,-1), (i,-1,i,-1), (i,i,i,-1), (i,-1,i,i)
+            nii00 = self.count(ii00) if self.count(ii00) != -1 else 0
+            ni0i0 = self.count(i0i0) if self.count(i0i0) != -1 else 0
+            niii0 = self.count(iii0) if self.count(iii0) != -1 else 0
+            ni0ii = self.count(i0ii) if self.count(i0ii) != -1 else 0
+            P += nii00 + ni0i0 + 2*(niii0 + ni0ii)
+            for j in range(self.city.n**2):
+                if j == i: 
+                    continue
+                i0j0, i0ij, iij0 = (i,-1,j,-1), (i,-1,i,j), (i,i,j,-1)
+                ni0j0 = self.count(i0j0) if self.count(i0j0) != -1 else 0
+                ni0ij = self.count(i0ij) if self.count(i0ij) != -1 else 0
+                niij0 = self.count(iij0) if self.count(iij0) != -1 else 0
+                omegaij = self.city.omega(i, j)
+                P += ni0j0 + 2*ni0ij + 2*niij0
+                for k in omegaij:
+                    i0jk = (i,-1,j,k) 
+                    ni0jk = self.count(i0jk) if self.count(i0jk) != -1 else 0
+                    P += 2*ni0jk
+        return P
+
     def sign(self, num):
         num = float(num)
         return (num > 0) - (num < 0)
     
     # force acted on veh1 by veh2
     def force(self, veh1:Taxi, veh2:Taxi):
+        idle_status = (veh1.zone.id, -1, -1, -1)
         def f(dist):
-            maxdist = self.city.l
-            if dist >= maxdist:
+            max_dist = 2*self.city.l/((self.count(idle_status)+1)*3.1415)**0.5
+            if dist >= max_dist:
                 return 0
-            f_mag = 10 * (maxdist - dist)
+            f_mag = 10*(max_dist - dist)+1
             return f_mag
         x1, y1 = veh1.x, veh1.y
         x2, y2 = veh2.x, veh2.y
-        forcevec = np.array([self.sign(x1-x2)*f(abs(x1-x2)), self.sign(y1-y2)*f(abs(y1-y2))])
+        f_mag = f(((x1-x2)**2 + (y1-y2)**2)**0.5)
+        forcevec = np.array([(x1-x2)/(abs(x1-x2)+abs(y1-y2))*f_mag, (y1-y2)/(abs(x1-x2)+abs(y1-y2))*f_mag])
         return forcevec
 
     # boundary force of the taxi when close to the boundary with threshold delta
-    def force_boundary(self, veh:Taxi, delta=1):
+    def force_boundary(self, veh:Taxi):
+        idle_status = (veh.zone.id, -1, -1, -1)
+        delta = 1/2*self.city.l/((self.count(idle_status)+1)*3.1415)**0.5
         M = 10**6
         cx, cy = veh.zone.center
         x, y = veh.x, veh.y
         xdir, ydir = self.sign(cx-x), self.sign(cy-y) 
         forcevec = np.array([M*((self.city.l/2-abs(cx-x))<delta)*xdir, M*(self.city.l/2-abs(cy-y)<delta)*ydir]) 
         return forcevec
-    
-    def computeP(self):
-        P = 0
-        for i in range(self.city.n**2):
-            P += self.count()
-            for j in range(self.city.n**2):
-                if j == i: 
-                    continue
-        return 
 
     def impulse_i000(self):
         for zone_id in self.zone_group:
@@ -181,6 +200,10 @@ class Taxifleet(Fleet):
             if i000 not in zone:
                 continue
             vehs_i000 = zone[i000]
+            if len(vehs_i000) >= 100:
+                continue
+            mindist = 2*self.city.l/(((self.count((zone_id, -1, -1, -1)))+1)*3.1415)**0.5
+            minforce = 10**(1/mindist)
             for veh1 in vehs_i000:
                 impulsion = np.array([0.0, 0.0])
                 for veh2 in vehs_i000:
@@ -188,14 +211,20 @@ class Taxifleet(Fleet):
                         continue
                     f = self.force(veh1, veh2)
                     impulsion += f
-                # impulsion += self.force_boundary(veh1)
-                alpha, beta = abs(impulsion[0])*(abs(impulsion[0])>1000), abs(impulsion[1])*(abs(impulsion[1])>1000)
-                if alpha == 0 and beta == 0:
-                    veh1.dir = None
-                elif alpha > beta:
-                    veh1.dir = (self.sign(impulsion[0]), 0)
+                bf = self.force_boundary(veh1)
+                alpha, beta = impulsion[0], impulsion[1]
+                if bf[0] == 0 and bf[1] == 0:
+                    if abs(alpha) <= minforce and abs(beta) <= minforce:
+                        alpha_, beta_ = 0, 0
+                    else:
+                        alpha_, beta_ = alpha/(abs(alpha)+abs(beta)), beta/(abs(alpha)+abs(beta)) 
                 else:
-                    veh1.dir = (0, self.sign(impulsion[1]))
+                    alpha_, beta_ = self.sign(bf[0]), self.sign(bf[1])
+                    alpha_, beta_ = alpha_/(abs(alpha_)+abs(beta_)), beta_/(abs(alpha_)+abs(beta_))
+                veh1.alpha_, veh1.beta_ = alpha_, beta_
+            for veh1 in vehs_i000:
+                veh1.x += self.dt*veh1.zone.max_v*(veh1.alpha_)
+                veh1.y += self.dt*veh1.zone.max_v*(veh1.beta_)
         return 
 
     # define the direction of movement based on impulsion model

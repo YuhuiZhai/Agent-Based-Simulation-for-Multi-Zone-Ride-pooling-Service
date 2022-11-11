@@ -11,12 +11,18 @@ class Zone:
         self.center = new_center
         return
     
+    def xyrange(self):
+        xlim = [self.center[0] - self.length/2, self.center[0] + self.length/2]
+        ylim = [self.center[1] - self.length/2, self.center[1] + self.length/2] 
+        return xlim, ylim
+
     # xlim and ylim defines the location restriction within this zone
     def generate_location(self, xlim=None, ylim=None):
+        xlim0, ylim0 = self.xyrange()
         if xlim == None: 
-            xlim = [self.center[0] - self.length/2, self.center[0] + self.length/2]
+            xlim = xlim0
         if ylim == None:
-            ylim = [self.center[1] - self.length/2, self.center[1] + self.length/2] 
+            ylim = ylim0
         xlim.sort()
         ylim.sort()
         lengthx, lengthy = abs(xlim[1] - xlim[0]), abs(ylim[1] - ylim[0])
@@ -50,6 +56,29 @@ class City:
         self.feasible_zone2 = {}
         # feasible zone is a dictionary storing Case 3 pair {key=(ozone_id, dzone_id) : value=[feasible zone id]}
         self.feasible_zone3 = {}
+        self.init_omega()
+
+    # intialize the omega set
+    def init_omega(self):
+        def dist(o, d):
+            ox, oy = self.getZone(o).center
+            dx, dy = self.getZone(d).center
+            return abs(ox - dx) + abs(oy - dy)
+        self.omega_sets = {}
+        for i in range(self.n**2):
+            for j in range(self.n**2):
+                if j == i:
+                    continue
+                fz = self.feasibleZone_2(i, j)
+                omega = set()
+                for k in fz:
+                    if dist(i, k) >= dist(i, j):
+                        omega.add(k)
+                self.omega_sets[(i, j)] = omega
+        return 
+
+    def omega(self, i, j):
+        return self.omega_sets[(i, j)]
 
     # function to split the city into n x n zones
     # If city was splitted before, this function will replace the city by a new one. 

@@ -5,12 +5,14 @@ from eventQueue import EventQueue
 from tqdm import tqdm
 from animation import Animation
 import xlsxwriter as xw
+import openpyxl as op
 
 class Simulation:
-    def __init__(self, city:City, T:float, lmd_matrix=None, fleet_matrix=None, rebalance_matrix=None):
-        self.clock, self.city, self.T = 0, city, T
+    def __init__(self, city:City, dt:float, T:float, lmd_matrix=None, fleet_matrix=None, rebalance_matrix=None):
+        self.clock, self.city, self.dt, self.T = 0, city, dt, T
         self.lmd_m, self.fleet_m, self.rebalance_m = lmd_matrix, fleet_matrix, rebalance_matrix
-        self.fleet, self.events = Taxifleet(self.fleet_m, 0, self.city, self.T, self.rebalance_m), EventQueue(T, self.lmd_m, 0, self.city)
+        self.fleet = Taxifleet(self.fleet_m, 0, self.city, self.dt, self.T, self.rebalance_m)
+        self.events = EventQueue(T, self.lmd_m, 0, self.city)
         self.timeline = None
         self.fleet_info = [] # list of [ax, ay], [sx, sy], [ix, iy]
         self.passenger_info = [] # list of [px, py]
@@ -29,15 +31,16 @@ class Simulation:
         self.flow_table = [{}, {}, {}, {}, {}, {}]
         # record of position of status i0i0 in each zone 
         self.pos_i0i0 = {i:[[], []] for i in range(self.city.n**2)}
+        # record of total weighted state number P
+        self.Ps = []
     
-    def move(self, res:float):
-        self.clock += res
-        self.fleet.zone_move(res)
-        self.events.move(res)
+    def move(self):
+        self.clock += self.dt
+        self.fleet.zone_move(self.dt)
+        self.events.move(self.dt)
 
-    def simple_serve(self, res:float):
-        self.res = res
-        self.timeline = np.arange(0, self.T, res)
+    def simple_serve(self):
+        self.timeline = np.arange(0, self.T, self.dt)
         for t in tqdm(self.timeline, desc="simple_serve loading"):
             p_id, p = self.events.head()
             while (not self.events.empty() and p.t_start < t):
@@ -49,9 +52,18 @@ class Simulation:
                 p_id, p = self.events.head()
             self.fleet.rebalance()
             # self.fleet.super_reallocation()
-            self.move(res)
+            self.move()
             self.update()
         return 
+
+    def read(path, self):
+        df = op.load_workbook(path)
+        wb = df.active
+        for i in range(wb.max_row + 1):
+            status = wb.cell(i, 1).value.split()[1]
+            s0, s1, s2, s3 = status[0], status[1], status[2], status[3]
+            
+
 
     def update_state_transition(self):
         for zone_id in self.fleet.zone_group:
@@ -146,6 +158,23 @@ class Simulation:
                 self.update_flow_table(2, curr_status)
         return 
 
+    def update_P(self):
+        P = self.fleet.computeP()
+        self.Ps.append(P)
+        
+    def update_pos(self):
+        for status in self.fleet.vehs_group:
+            vehx, vehy = [], [] 
+            for veh in self.fleet.vehs_group[status]:
+                vehx.append(veh.x)
+                vehy.append(veh.y)
+            vehx = sum(vehx)/len(vehx) if len(vehx) != 0 else None
+            vehy = sum(vehy)/len(vehy) if len(vehy) != 0 else None
+            if status not in self.avg_position:
+                self.avg_position[status] = [(None, None) for i in range(self.idx)]
+            self.avg_position[status].append((vehx, vehy))
+        return 
+    
     def update(self):
         ax, ay = [], []
         sx, sy = [], []
@@ -164,6 +193,7 @@ class Simulation:
         self.update_pos()
         self.update_flow()
         self.update_avg_position_i0i0()
+        self.update_P()
         self.idx += 1
         return 
 
@@ -182,18 +212,7 @@ class Simulation:
             animation.plot(compression, fps, fleet_pattern, passenger_pattern, "simulation", path)
         else: animation.plot(compression, fps, fleet_pattern, passenger_pattern, name, path)
     
-    def update_pos(self):
-        for status in self.fleet.vehs_group:
-            vehx, vehy = [], [] 
-            for veh in self.fleet.vehs_group[status]:
-                vehx.append(veh.x)
-                vehy.append(veh.y)
-            vehx = sum(vehx)/len(vehx) if len(vehx) != 0 else None
-            vehy = sum(vehy)/len(vehy) if len(vehy) != 0 else None
-            if status not in self.avg_position:
-                self.avg_position[status] = [(None, None) for i in range(self.idx)]
-            self.avg_position[status].append((vehx, vehy))
-        return 
+    
 
     def export_avg_position(self, status=[(2,-1,2,-1)], name=""):
         workbook = xw.Workbook(f"{self.fleet_m}_avg_position.xlsx")
@@ -210,7 +229,7 @@ class Simulation:
                 x, y = pos
                 if x == None or y == None:
                     continue
-                worksheet.write(3+idx, 0, idx*self.res)
+                worksheet.write(3+idx, 0, idx*self.dt)
                 worksheet.write(3+idx, 1, x)
                 worksheet.write(3+idx, 2, y)
                 xsum += x; ysum += y; xlen += 1; ylen += 1
@@ -293,44 +312,52 @@ class Simulation:
             total_dist += veh.dist
         print(total_dist)
         return
-    
-    def export_flow(self):
+
+    def export_P_over_lambda(self):
+        Ps = self.Ps[int(len(self.Ps)/3):]
+        avg_P = sum(Ps) / len(Ps)
+        total_lambda = sum(np.array(self.lmd_m).flatten())
+        print(avg_P / total_lambda)
+        return avg_P / total_lambda
+
+    def export_flow(self, full=False):
         temp = {0:"a", 1:"b", 2:"c", 3:"d", 4:"g", 5:"p"}
         workbook = xw.Workbook(f"{self.fleet_m}_flow.xlsx")
         worksheet0 = workbook.add_worksheet("summary")
         worksheets = []
         for i in range(6):
             worksheet0.write(0, i*2, f"{temp[i]}_xxxx")
-            # worksheet = workbook.add_worksheet(temp[i])
-            # worksheet.write(0, 0, "time")
-            # for j in range(self.idx):
-            #     worksheet.write(j+1, 0, j*self.res)
+            if full:
+                worksheet = workbook.add_worksheet(temp[i])
+                worksheet.write(0, 0, "time")
+                for j in range(self.idx):
+                    worksheet.write(j+1, 0, j*self.dt)
             flows = self.flow_table[i]
             for j, status in enumerate(flows):
                 worksheet0.write(j+1, i*2, f"{temp[i]}_{status}")
-                worksheet0.write(j+1, i*2+1, sum(flows[status])/self.idx/self.res)
-                # worksheet.write(0, j+1, f"{temp[i], status}")
-                # for k in range(self.idx):
-                #     if k >= len(flows[status]):
-                #         worksheet.write(k+1, j+1, 0)
-                #     else:
-                #         worksheet.write(k+1, j+1, flows[status][k])
+                worksheet0.write(j+1, i*2+1, sum(flows[status])/self.idx/self.dt)
+                if full:
+                    worksheet.write(0, j+1, f"{temp[i], status}")
+                    for k in range(self.idx):
+                        if k >= len(flows[status]):
+                            worksheet.write(k+1, j+1, 0)
+                        else:
+                            worksheet.write(k+1, j+1, flows[status][k])
         workbook.close()
         return
 
     # export state transition information 
-    def export_state_number(self):
+    def export_state_number(self, full=False, shift=1):
         workbook = xw.Workbook(f"{self.fleet_m}_state_number.xlsx")
         cell_format = workbook.add_format()
         cell_format.set_bold()
         cell_format.set_font_color('red')
         worksheet0 = workbook.add_worksheet("summary")
-        worksheet1 = workbook.add_worksheet("status number")
-        worksheet2 = workbook.add_worksheet("unserved number")
-        
-
         worksheet0.write(0, 0, "status")
         worksheet0.write(0, 1, "avg number")
+        if full:
+            worksheet1 = workbook.add_worksheet("status number")
+        worksheet2 = workbook.add_worksheet("unserved number")
         row = 1
         for zone_id in self.status_record:
             for status in self.status_record[zone_id]:
@@ -338,33 +365,36 @@ class Simulation:
                 # get rid of warming stage
                 avg = sum(self.status_record[zone_id][status][int(1/3*l):]) / len(self.status_record[zone_id][status][int(1/3*l):]) 
                 if status == (-1, -1, -1):
-                    worksheet0.write(row, 0, f"{zone_id, status[0], status[1], status[2]}", cell_format)
+                    worksheet0.write(row, 0, f"n_{zone_id+shift}{status[0]+shift}{status[1]+shift}{status[2]+shift}", cell_format)
                 else:
-                    worksheet0.write(row, 0, f"{zone_id, status[0], status[1], status[2]}")
+                    worksheet0.write(row, 0, f"n_{zone_id+shift}{status[0]+shift}{status[1]+shift}{status[2]+shift}")
                 worksheet0.write(row, 1, avg)
                 row += 1
-
-        for i in range(self.idx):
-            worksheet1.write(i+1, 0, i*self.res)
-        worksheet1.write(0, 0, "time t (s)")
-        col = 1
-        for zone_id in self.status_record:
-            for status in self.status_record[zone_id]:
-                worksheet1.write(0, col, f"({zone_id, *status}")
-                row = 1
-                for num in self.status_record[zone_id][status]:
-                    worksheet1.write(row, col, num)
-                    row += 1
-                col += 1
+        if full:
+            for i in range(self.idx):
+                worksheet1.write(i+1, 0, i*self.dt)
+            worksheet1.write(0, 0, "time t (s)")
+            col = 1
+            for zone_id in self.status_record:
+                for status in self.status_record[zone_id]:
+                    worksheet1.write(0, col, f"({zone_id, *status}")
+                    row = 1
+                    for num in self.status_record[zone_id][status]:
+                        worksheet1.write(row, col, num)
+                        row += 1
+                    col += 1
         worksheet2.write(0, 0, "unserved number in each zone")
         for i in range(self.city.n):
             for j in range(self.city.n):
                 zone_id = i*self.city.n + j
-                worksheet2.write(i+1, j, self.unserved[zone_id])        
+                worksheet2.write(i+1, j, self.unserved[zone_id])   
+        wb = workbook.add_worksheet("P")     
+        wb.write(0, 0, "P/sum lamda")
+        wb.write(0, 1, self.export_P_over_lambda())
         workbook.close()
         return 
 
-    def export_passenger_time(self):
+    def export_passenger_time(self, full=False):
         for info in self.events.queue:
             p = info[1]
             if p.status != 3:
@@ -374,16 +404,17 @@ class Simulation:
             self.traveling_ts[p.zone.id][p.target_zone.id][p.rs_status].append(p.t_end - p.t_start)
         workbook = xw.Workbook(f"{self.fleet_m}_passenger_time.xlsx")
         worksheet0 = workbook.add_worksheet("passenger total traveling time")
-        worksheet1 = workbook.add_worksheet("passenger time of caller")
-        worksheet2 = workbook.add_worksheet("passenger time of seeker")
-        worksheet3 = workbook.add_worksheet("distance of choices")
-        worksheet1.write(0, 0, "zone i \ zone j")
-        worksheet2.write(0, 0, "zone i \ zone j")
-        for i in range(self.city.n**2):
-            worksheet1.write(0, i+1, f"{i}")
-            worksheet1.write(i+1, 0, f"{i}")
-            worksheet2.write(0, i+1, f"{i}")
-            worksheet2.write(i+1, 0, f"{i}")
+        if full:
+            worksheet1 = workbook.add_worksheet("passenger time of caller")
+            worksheet2 = workbook.add_worksheet("passenger time of seeker")
+            worksheet3 = workbook.add_worksheet("distance of choices")
+            worksheet1.write(0, 0, "zone i \ zone j")
+            worksheet2.write(0, 0, "zone i \ zone j")
+            for i in range(self.city.n**2):
+                worksheet1.write(0, i+1, f"{i}")
+                worksheet1.write(i+1, 0, f"{i}")
+                worksheet2.write(0, i+1, f"{i}")
+                worksheet2.write(i+1, 0, f"{i}")
         total_sum, total_sum0, total_sum1 = 0, 0, 0
         total_num, total_num0, total_num1 = 0, 0, 0
         for i in range(self.city.n**2):
@@ -397,40 +428,42 @@ class Simulation:
                 total_num1 += l1 
                 avg0 = 0 if l0 == 0 else sum(self.traveling_ts[i][j][0])/l0
                 avg1 = 0 if l1 == 0 else sum(self.traveling_ts[i][j][1])/l1
-                worksheet1.write(i+1, j+1, avg0)
-                worksheet2.write(i+1, j+1, avg1)
+                if full:
+                    worksheet1.write(i+1, j+1, avg0)
+                    worksheet2.write(i+1, j+1, avg1)
         worksheet0.write(0, 0, "average passenger door to door traveling time (hr)")
         worksheet0.write(1, 0, total_sum/total_num)
         worksheet0.write(3, 0, "average caller door to door traveling time (hr)")
         worksheet0.write(4, 0, total_sum0/total_num0)
         worksheet0.write(6, 0, "average seeker door to door traveling time (hr)")
         worksheet0.write(7, 0, total_sum1/total_num1)
-        new_row_idx = self.city.n**2 + 2
-        worksheet1.write(new_row_idx, 0, "passenger travelling time distribution")
-        worksheet2.write(new_row_idx, 0, "passenger travelling time distribution")
-        idx = 0
-        for i in range(self.city.n**2):
-            for j in range(self.city.n**2):
-                worksheet1.write(new_row_idx+1, idx, f"{(i, j)}")
-                worksheet2.write(new_row_idx+1, idx, f"{(i, j)}")
-                for k, t in enumerate(self.traveling_ts[i][j][0]):       
-                    worksheet1.write(new_row_idx+2+k, idx, t)
-                for k, t in enumerate(self.traveling_ts[i][j][1]):       
-                    worksheet2.write(new_row_idx+2+k, idx, t)    
-                idx += 1
+        if full:
+            new_row_idx = self.city.n**2 + 2
+            worksheet1.write(new_row_idx, 0, "passenger travelling time distribution")
+            worksheet2.write(new_row_idx, 0, "passenger travelling time distribution")
+            idx = 0
+            for i in range(self.city.n**2):
+                for j in range(self.city.n**2):
+                    worksheet1.write(new_row_idx+1, idx, f"{(i, j)}")
+                    worksheet2.write(new_row_idx+1, idx, f"{(i, j)}")
+                    for k, t in enumerate(self.traveling_ts[i][j][0]):       
+                        worksheet1.write(new_row_idx+2+k, idx, t)
+                    for k, t in enumerate(self.traveling_ts[i][j][1]):       
+                        worksheet2.write(new_row_idx+2+k, idx, t)    
+                    idx += 1
 
-        for i in range(5):
-            worksheet3.write(0, i, f"Case {i}")
-        curr_row = 1
-        dist_infos = self.events.dist_helper()
-        for i in range(self.city.n**2):
-            for j in range(self.city.n**2):
-                dist_ij = dist_infos[(i, j)]
-                for info in dist_ij:
-                    worksheet3.write(curr_row, 0, f"{(i, j)}")
-                    for k in range(5):
-                        worksheet3.write(curr_row, k+1, info[k])
-                    curr_row += 1
+            for i in range(5):
+                worksheet3.write(0, i, f"Case {i}")
+            curr_row = 1
+            dist_infos = self.events.dist_helper()
+            for i in range(self.city.n**2):
+                for j in range(self.city.n**2):
+                    dist_ij = dist_infos[(i, j)]
+                    for info in dist_ij:
+                        worksheet3.write(curr_row, 0, f"{(i, j)}")
+                        for k in range(5):
+                            worksheet3.write(curr_row, k+1, info[k])
+                        curr_row += 1
         workbook.close()
         return 
 

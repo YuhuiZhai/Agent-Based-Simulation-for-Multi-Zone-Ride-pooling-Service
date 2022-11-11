@@ -20,6 +20,7 @@ class Unit:
         return (self.id, old_status, new_status)
     
     def sign(self, num):
+        num = float(num)
         return (num > 0) - (num < 0)
 
     # move from origin (x, y) to destination (x, y) using Manhattan space

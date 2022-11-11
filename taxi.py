@@ -24,18 +24,68 @@ class Taxi(Unit):
     # return current position
     def location(self):
         return (self.x, self.y)
-    
+
+
     # helper function to compare the distance of passengers'destination relative to a position
     # p1 is assigned passenger, p2 is compared passenger (can be None)
     def dist_helper(self, pos:tuple, p1:Passenger, p2:Passenger):
         if p2 == None:
             return p1, p2
-        d1 = abs(p1.dx - pos[0]) + abs(p1.dy - pos[1])
-        d2 = abs(p2.dx - pos[0]) + abs(p2.dy - pos[1])
+        if p1.target_zone.id == p2.target_zone.id:
+            d1 = abs(p1.dx - pos[0]) + abs(p1.dy - pos[1])
+            d2 = abs(p2.dx - pos[0]) + abs(p2.dy - pos[1])
+        else:
+            x0, y0 = self.zone.center
+            x1, y1 = p1.target_zone.center
+            x2, y2 = p2.target_zone.center           
+            d1 = abs(x0 - x1) + abs(y0 - y1)
+            d2 = abs(x0 - x2) + abs(y0 - y2)
         if d1 < d2: 
             return p1, p2
         else:
             return p2, p1
+
+    # change from idle to an assigned status
+    # def changeTo(self, status):
+    #     table = {0:200, 1:200, 2:1400, 3:200}
+    #     s0, s1, s2, s3 = status
+    #     # idle taxi
+    #     if s1 == -1 and s2 == -1 and s3 == -1:
+    #         return 
+    #     # assign to zero pax taxi
+    #     if s1 != -1 and s2 == -1 and s3 == -1:
+    #         self.assign(Passenger(0, 0, self.city.getZone(s0), self.city.getZone(np.random.randint(0, 4))))
+    #     # assign to one pax taxi
+    #     if s1 != -1 and s2 != -1 and s3 == -1:
+    #         pax1 = Passenger(0, 0, self.city.getZone(s0), self.city.getZone(s2))
+    #         if s0 == s2:
+
+    #             # Case 1 
+    #             if np.random.random() <= table[s0] / 2000:
+    #                 pax2 = Passenger(0, 0, self.city.getZone(s0), self.city.getZone(s0))
+    #                 xlim1, ylim1, xlim2, ylim2 = self.city.feasibleZone_1(self.location(), (pax1.dx, pax1.dy), s0)
+    #                 area1 = (xlim1[1] - xlim1[0]) * (ylim1[1] - ylim1[0])
+    #                 area2 = (xlim2[1] - xlim2[0]) * (ylim2[1] - ylim2[0])
+    #                 alpha = area1 / (area1 + area2)
+    #                 # reassign the destination of passenger according to possibility
+    #                 if np.random.random() <= alpha:
+    #                     pax2.dx, pax2.dy = np.random.uniform(xlim1[0], xlim1[1]), np.random.uniform(ylim1[0], ylim1[1]) 
+    #                 else:
+    #                     pax2.dx, pax2.dy = np.random.uniform(xlim2[0], xlim2[1]), np.random.uniform(ylim2[0], ylim2[1]) 
+    #             # Case 3
+    #             else:
+    #                 p = [p[0], p[0]+p[1]]
+    #                 rnd = np.random.random()
+    #                 if rnd < p[0]: d = temp[0]
+    #                 elif rnd < p[1]: d = temp[1]
+    #                 else: d = temp[2]
+    #                 fz = self.city.feasibleZone_4(self.location(), (pax1.dx, pax1.dy), s2)
+    #                 if fz != []:
+    #                     sum = 0 
+    #                     for i in fz:
+    #                        sum += table[i] 
+
+
 
     # assign a passenger to a vehicle
     def assign(self, passenger:Passenger):
@@ -46,11 +96,10 @@ class Taxi(Unit):
         self.assigned_dist_record.append(abs(self.x-passenger.x) + abs(self.y - passenger.y))
         passenger.status, passenger.t_a = 1, self.clock
         self.turning_xy = None
-        self.dir = None
+        self.curr_dir = None
         s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status
-        self.taxi_status = (s0, (s0, passenger), (s2, p2), (s3, p3)) 
+        self.taxi_status = (s0, (s0, passenger), (s2, p2), (s3, p3))   
         new_group_status = (s0, s0, s2, s3)
-        
         status_request = self.changeStatusTo(new_group_status)
         return status_request
 
@@ -82,7 +131,6 @@ class Taxi(Unit):
             return 
         s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status   
         p2.status, p2.t_end = 3, self.clock
-        self.dir = None
         self.taxi_status = (s0, (s1, p1), (s3, p3), (-1, None))
         new_group_status = (s0, s1, s3, -1)
         status_request = self.changeStatusTo(new_group_status)
@@ -94,7 +142,6 @@ class Taxi(Unit):
         if self.status != (self.zone.id, -1, -1, -1):
             print("Error in rebalance status")
             return 
-        self.dir = None
         s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status
         self.idle_position = zone.generate_location()
         self.taxi_status = (s0, (zone.id, None), (-1, None), (-1, None))
@@ -105,7 +152,7 @@ class Taxi(Unit):
     # make the taxi idle status
     def idle(self):
         self.idle_position = None
-        self.dir = None
+        self.turning_xy = None
         self.taxi_status = (self.zone.id, (-1, None), (-1, None), (-1, None))
         new_group_status = (self.zone.id, -1, -1, -1)
         status_request = self.changeStatusTo(new_group_status)
@@ -159,13 +206,23 @@ class Taxi(Unit):
         
         # Case that taxi change the direction. Taxi will choose random point. 
         else: 
+            (s0, (s1, p1), (s2, p2), (s3, p3)) = self.taxi_status
             if self.turning_xy == None:
+                xlim0, ylim0 = None, None
+                if p2 != None:
+                    xlim0, ylim0 = [self.x, p2.dx], [self.y, p2.dy]
+                    xlim0.sort(); ylim0.sort()
                 xlim, ylim = None, None
                 # if direction is North or South, choose the upper/lower region divided by y value 
                 if dir == 0 or dir == 3: 
                     ylim = [self.y, self.zone.center[1] + dir_map[dir][1]*self.zone.length/2]
                 elif dir == 1 or dir == 2: 
                     xlim = [self.x, self.zone.center[0] + dir_map[dir][0]*self.zone.length/2]
+                zone_xlim, zone_ylim = self.zone.xyrange()
+                if xlim == None and zone_xlim[0] < p2.dx and p2.dx < zone_xlim[1]:
+                    xlim = xlim0
+                if ylim == None and zone_ylim[0] < p2.dy and p2.dy < zone_ylim[1]:
+                    ylim = ylim0
                 self.turning_xy = self.zone.generate_location(xlim=xlim, ylim=ylim)
             if dir == 0 or dir == 3: xfirst = True
             else: xfirst = False 
@@ -226,9 +283,6 @@ class Taxi(Unit):
         status_request = None
         # idle status
         if s1 == -1 and s2 == -1 and s3 == -1:
-            if self.dir != None:
-                dx, dy = self.x + self.city.l*self.dir[0], self.y + self.city.l*self.dir[1]
-                self.move_Manhattan(dt, (dx, dy))
             return status_request
         
         self.dist += dt*self.speed     
