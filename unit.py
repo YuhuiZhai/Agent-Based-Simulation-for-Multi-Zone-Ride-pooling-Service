@@ -12,11 +12,14 @@ class Unit:
         self.prev_status = None
         # the direction by impulsion model
         self.dir = None
+        # when status changes, status_change_count should be normalized to 0. 
+        self.status_change = 0
     
     # change self status to new status, and also return message to upper level
     def changeStatusTo(self, new_status):
         old_status = self.status
         self.status = new_status
+        self.status_change = 0
         return (self.id, old_status, new_status)
     
     def sign(self, num):

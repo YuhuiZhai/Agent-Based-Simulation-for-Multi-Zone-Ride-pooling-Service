@@ -6,10 +6,11 @@ from tqdm import tqdm
 from animation import Animation
 import xlsxwriter as xw
 import openpyxl as op
-
+import os
 class Simulation:
     def __init__(self, city:City, dt:float, T:float, lmd_matrix=None, fleet_matrix=None, rebalance_matrix=None):
         self.clock, self.city, self.dt, self.T = 0, city, dt, T
+        self.city.assignT(T)
         self.lmd_m, self.fleet_m, self.rebalance_m = lmd_matrix, fleet_matrix, rebalance_matrix
         self.fleet = Taxifleet(self.fleet_m, 0, self.city, self.dt, self.T, self.rebalance_m)
         self.events = EventQueue(T, self.lmd_m, 0, self.city)
@@ -27,10 +28,10 @@ class Simulation:
 
         # record of vehicle positions
         self.avg_position = {}
+        # record of expected deliver time 
+        self.deliver_time_table, self.deliver_count_table = {}, {}
         # record of flow transition, representing [a, b, c, d, g, p]
         self.flow_table = [{}, {}, {}, {}, {}, {}]
-        # record of position of status i0i0 in each zone 
-        self.pos_i0i0 = {i:[[], []] for i in range(self.city.n**2)}
         # record of total weighted state number P
         self.Ps = []
     
@@ -56,15 +57,6 @@ class Simulation:
             self.update()
         return 
 
-    def read(path, self):
-        df = op.load_workbook(path)
-        wb = df.active
-        for i in range(wb.max_row + 1):
-            status = wb.cell(i, 1).value.split()[1]
-            s0, s1, s2, s3 = status[0], status[1], status[2], status[3]
-            
-
-
     def update_state_transition(self):
         for zone_id in self.fleet.zone_group:
             for status in self.fleet.zone_group[zone_id]:
@@ -73,17 +65,6 @@ class Simulation:
                 self.status_record[zone_id][status].append(len(self.fleet.zone_group[zone_id][status]))
         return
     
-    # update avg position of status i0i0 vehicle
-    def update_avg_position_i0i0(self):
-        avg_pos = self.fleet.avg_pos_i0i0()
-        for i in self.pos_i0i0:
-            if avg_pos[i] == None:
-                continue
-            x, y = avg_pos[i]
-            self.pos_i0i0[i][0].append(x)
-            self.pos_i0i0[i][1].append(y)
-        return 
-
     # add one to the status number in the flow_table
     def update_flow_table(self, type:int, status):
         if status == None:
@@ -97,6 +78,28 @@ class Simulation:
         else: 
             self.flow_table[type][status][-1] += 1
         return 
+    
+    # updated the expected travel time of each state in the appendix
+    # 0:c, 1:pick up the first pax, 2:pick up the second pax, 3:d from c, 4: d from p, 5:d
+    # deliver_time_table[status][deliver_type] = [avg trip time, , , ]
+    def update_deliver_time(self):
+        if self.clock <= self.T/3:
+            return 
+        def update_table(veh, deliver_type:int):
+            self.deliver_time_table[veh.status][deliver_type] += self.dt
+            return 
+        for status in self.fleet.vehs_group:
+            s0, s1, s2, s3 = status
+            # not including status without an assigned pax
+            if s1 != -1 or s2 == -1:
+                continue
+            vehs = self.fleet.vehs_group[status]
+            if status not in self.deliver_time_table:
+                self.deliver_time_table[status] = [0 for i in range(6)]
+            for veh in vehs:
+                deliver_idx = veh.deliver_index()
+                if deliver_idx != None: update_table(veh, deliver_idx)
+        return  
 
     def update_flow(self):
         # 0:a, 1:b, 2:c, 3:d, 4:g, 5:p
@@ -191,8 +194,8 @@ class Simulation:
         self.passenger_info.append([[px, py]])
         self.update_state_transition()
         self.update_pos()
+        self.update_deliver_time()
         self.update_flow()
-        self.update_avg_position_i0i0()
         self.update_P()
         self.idx += 1
         return 
@@ -211,8 +214,7 @@ class Simulation:
         if name == "":
             animation.plot(compression, fps, fleet_pattern, passenger_pattern, "simulation", path)
         else: animation.plot(compression, fps, fleet_pattern, passenger_pattern, name, path)
-    
-    
+        return 
 
     def export_avg_position(self, status=[(2,-1,2,-1)], name=""):
         workbook = xw.Workbook(f"{self.fleet_m}_avg_position.xlsx")
@@ -253,15 +255,6 @@ class Simulation:
         print(ratio_m)
         return ratio_m
 
-    def export_avg_position_i0i0(self):
-        result = []
-        for i in self.pos_i0i0:
-            avgx = sum(self.pos_i0i0[i][0]) / len(self.pos_i0i0[i][0])
-            avgy = sum(self.pos_i0i0[i][1]) / len(self.pos_i0i0[i][1])
-            result.append((avgx, avgy))       
-        print(result)
-        return result
-    
     def export_valid_i0i0_4(self):
         ratio_m = []
         ratio_m_diag = []
@@ -319,6 +312,93 @@ class Simulation:
         total_lambda = sum(np.array(self.lmd_m).flatten())
         print(avg_P / total_lambda)
         return avg_P / total_lambda
+    
+    # export the deliver count of each status with different deliver type
+    def export_deliver_count(self):
+        table = {}
+        for veh_id in self.fleet.vehicles: 
+            veh = self.fleet.vehicles[veh_id]
+            for status in veh.deliver_count_table:
+                if status not in table:
+                    table[status] = [0 for i in range(6)]
+                for deliver_type in range(6):
+                    count = veh.deliver_count_table[status][deliver_type]
+                    table[status][deliver_type] += count 
+        self.deliver_count_table = table
+        return table 
+
+    def export_deliver_time(self):
+        self.export_deliver_count()
+        def avg(status, deliver_type):
+            if status not in self.deliver_time_table or status not in self.deliver_count_table:
+                return None
+            total_time = self.deliver_time_table[status][deliver_type]
+            total_count = self.deliver_count_table[status][deliver_type]
+            average = total_time / total_count if total_count != 0 else None            
+            return average
+        result = [[] for i in range(14)]
+        for i in range(self.city.n**2):
+            i0ii = (i, -1, i, i)
+            result[0].append(avg(i0ii, 0))
+            result[1].append(avg(i0ii, 1))
+            i0i0 = (i, -1, i, -1)
+            result[7].append(avg(i0i0, 0))
+            result[8].append(avg(i0i0, 1))
+            result[9].append(avg(i0i0, 3))
+            result[10].append(avg(i0i0, 4))
+            for j in range(self.city.n**2):
+                if j == i: 
+                    continue
+                i0ij = (i, -1, i, j)                 
+                result[2].append(avg(i0ij, 0))    
+                result[3].append(avg(i0ij, 2))    
+                result[4].append(avg(i0ij, 1))
+                i0j0 = (i, -1, j, -1)
+                result[11].append(avg(i0j0, 0))
+                result[12].append(avg(i0j0, 1))
+                result[13].append(avg(i0j0, 5))
+                for k in range(self.city.n**2):
+                    if k == i:
+                        continue
+                    i0jk = (i, -1, j, k) 
+                    result[5].append(avg(i0jk, 0)) 
+                    result[6].append(avg(i0jk, 2))
+        for i in range(14):
+            s, n = 0, 0 
+            for j in range(len(result[i])):
+                if result[i][j] == None: continue
+                s += result[i][j]
+                n += 1
+            result[i] = s/n*self.city.max_v if n != 0 else -1
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        path_exist = os.path.exists(f"{dir_path}\deliver_distance")
+        if not path_exist:
+            os.makedirs(f"{dir_path}\deliver_distance")
+        wb = xw.Workbook(f"{dir_path}\deliver_distance\deliver_distance_{self.fleet_m}.xlsx")
+        ws = wb.add_worksheet()
+        ws.write(0, 0, "Status")
+        ws.write(1, 0, "(i, 0, i, i)"); ws.write(3, 0, "(i, 0, i, j)"); ws.write(6, 0, "(i, 0, j, k)")
+        ws.write(8, 0, "(i, 0, i, 0)"); ws.write(12, 0, "(i, 0, i, j)")
+        
+        ws.write(0, 1, "Veh Inflow")
+        ws.write(1, 1, "ci0ii"); ws.write(2, 1, "piii0_i")
+        ws.write(3, 1, "ci0ij"); ws.write(4, 1, "piii0_j"); ws.write(5, 1, "piij0_i")
+        ws.write(6, 1, "ci0jk"); ws.write(7, 1, "piij0_k")
+        ws.write(8, 1, "ci0i0"); ws.write(9, 1, "pii00_i"); ws.write(10, 1, "ci0ii"); ws.write(11, 1, "piii0_i")
+        ws.write(12, 1, "ci0j0"); ws.write(13, 1, "pii00_j"); ws.write(14, 1, "di0ij")   
+        
+        ws.write(0, 2, "Expected Distance")
+        theta = self.city.l
+        ws.write(1, 2, 5*theta/8); ws.write(2, 2, theta/2)
+        ws.write(3, 2, 5*theta/6); ws.write(4, 2, 2*theta/3); ws.write(5, 2, 2*theta/3)
+        ws.write(6, 2, theta); ws.write(7, 2, theta/2)
+        ws.write(8, 2, 5*theta/6); ws.write(9, 2, 2*theta/3); ws.write(10, 2, 2*theta/3); ws.write(11, 2, theta/2)
+        ws.write(12, 2, theta); ws.write(13, 2, theta/2); ws.write(14, 2, theta/2)   
+        
+        ws.write(0, 3, "Simulation Result")
+        ws.write_column(1, 3, result)
+        wb.close()
+        return 
 
     def export_flow(self, full=False):
         temp = {0:"a", 1:"b", 2:"c", 3:"d", 4:"g", 5:"p"}

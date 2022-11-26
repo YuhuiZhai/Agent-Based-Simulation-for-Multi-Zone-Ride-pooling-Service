@@ -9,7 +9,10 @@ class Taxi(Unit):
         # default init_status is (city.id, (-1, None), (-1, None), (-1, None))
         # different from status in fleet, passenger is combined to s2 and s3 for convenience
         super().__init__(vehicle_id, zone, init_status)
+        self.prev_status = None
         self.taxi_status = (zone.id, (-1, None), (-1, None), (-1, None))
+        self.prev_diff_status = None
+        self.pprev_diff_status = None
         self.load = 0
         self.city = city
         self.rng = np.random.default_rng(seed=np.random.randint(100))
@@ -20,11 +23,11 @@ class Taxi(Unit):
         self.status_record = [(self.zone.id, -1, -1, -1)]
         self.assigned_dist_record = []
         self.dist = 0
+        self.deliver_count_table = {}
 
     # return current position
     def location(self):
         return (self.x, self.y)
-
 
     # helper function to compare the distance of passengers'destination relative to a position
     # p1 is assigned passenger, p2 is compared passenger (can be None)
@@ -44,48 +47,6 @@ class Taxi(Unit):
             return p1, p2
         else:
             return p2, p1
-
-    # change from idle to an assigned status
-    # def changeTo(self, status):
-    #     table = {0:200, 1:200, 2:1400, 3:200}
-    #     s0, s1, s2, s3 = status
-    #     # idle taxi
-    #     if s1 == -1 and s2 == -1 and s3 == -1:
-    #         return 
-    #     # assign to zero pax taxi
-    #     if s1 != -1 and s2 == -1 and s3 == -1:
-    #         self.assign(Passenger(0, 0, self.city.getZone(s0), self.city.getZone(np.random.randint(0, 4))))
-    #     # assign to one pax taxi
-    #     if s1 != -1 and s2 != -1 and s3 == -1:
-    #         pax1 = Passenger(0, 0, self.city.getZone(s0), self.city.getZone(s2))
-    #         if s0 == s2:
-
-    #             # Case 1 
-    #             if np.random.random() <= table[s0] / 2000:
-    #                 pax2 = Passenger(0, 0, self.city.getZone(s0), self.city.getZone(s0))
-    #                 xlim1, ylim1, xlim2, ylim2 = self.city.feasibleZone_1(self.location(), (pax1.dx, pax1.dy), s0)
-    #                 area1 = (xlim1[1] - xlim1[0]) * (ylim1[1] - ylim1[0])
-    #                 area2 = (xlim2[1] - xlim2[0]) * (ylim2[1] - ylim2[0])
-    #                 alpha = area1 / (area1 + area2)
-    #                 # reassign the destination of passenger according to possibility
-    #                 if np.random.random() <= alpha:
-    #                     pax2.dx, pax2.dy = np.random.uniform(xlim1[0], xlim1[1]), np.random.uniform(ylim1[0], ylim1[1]) 
-    #                 else:
-    #                     pax2.dx, pax2.dy = np.random.uniform(xlim2[0], xlim2[1]), np.random.uniform(ylim2[0], ylim2[1]) 
-    #             # Case 3
-    #             else:
-    #                 p = [p[0], p[0]+p[1]]
-    #                 rnd = np.random.random()
-    #                 if rnd < p[0]: d = temp[0]
-    #                 elif rnd < p[1]: d = temp[1]
-    #                 else: d = temp[2]
-    #                 fz = self.city.feasibleZone_4(self.location(), (pax1.dx, pax1.dy), s2)
-    #                 if fz != []:
-    #                     sum = 0 
-    #                     for i in fz:
-    #                        sum += table[i] 
-
-
 
     # assign a passenger to a vehicle
     def assign(self, passenger:Passenger):
@@ -270,17 +231,68 @@ class Taxi(Unit):
             new_zone = self.city.neighborZone(self.zone, self.curr_dir)
             self.changeZone(new_zone)
             status_request = self.cross()
-        return False, status_request
+        return reached, status_request
 
+    def deliver_index(self):
+        if len(self.status_record) < 2: return None
+        (s0, s1, s2, s3) = self.status_record[-1]
+        (ps0, ps1, ps2, ps3) = self.status_record[-2]
+        if s1 != -1 or s2 == -1:
+            return None 
+        # (i, 0, i, i)
+        if s0 == s2 and s2 == s3:
+            # inflow ci0ii
+            if ps0 != s0: return 0
+            # inflow piii0_i
+            elif ps0 == s0 and ps1 == s0: return 1
+        # (i, 0, i, j)
+        elif s0 == s2 and s0 != s3:
+            # inflow ci0ij
+            if ps0 != s0: return 0   
+            # inflow piii0_j
+            elif ps0 == s0 and ps1 == s0 and ps2 == s0: return 2
+            # inflow piij0_i
+            elif ps0 == s0 and ps1 == s0 and ps2 == s3: return 1
+        # (i, 0, j, k)
+        elif s0 != s2 and s3 != -1:
+            # inflow ci0jk
+            if ps0 != s0: return 0
+            # inflow piij0_k
+            elif ps1 == ps0 and ps2 == s2: return 2
+        # (i, 0, i, 0)
+        elif s0 == s2 and s3 == -1:
+            # inflow ci0i0
+            if ps0 != s0: return 0
+            # inflow pii00_i
+            elif ps0 == ps1 and ps1 == -1: return 1
+            elif len(self.status_record) > 2:
+                (pps0, pps1, pps2, pps3) = self.status_record[-3]
+                # inflow di0i0, from ci0ii
+                if pps0 == s0 and pps1 == -1 and pps2 == pps3: return 3
+                # inflow di0i0, from piii0_i
+                elif pps0 == s0 and pps1 == s0 and pps2 == s0: return 4
+        # (i, 0, j, 0)
+        elif s0 != s2 and s3 == -1: 
+            # inflow ci0j0:
+            if ps0 != s0: return 0
+            # inflow pii00_j:
+            elif ps0 == ps1: return 1
+            # inflow di0ij:
+            elif ps0 == ps2 and ps3 == s2: return 5
+        return None
 
-    # movement function between zones
-    def move(self, dt):
-        self.prev_status = self.status
-        self.clock += dt
+    def update_status_record(self):
         s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status
         if (s0, s1, s2, s3) != self.status_record[-1]:
             self.status_record.append((s0, s1, s2, s3))
+        return 
+
+    # movement function between zones
+    def move(self, dt):
+        self.clock += dt
+        s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status
         status_request = None
+
         # idle status
         if s1 == -1 and s2 == -1 and s3 == -1:
             return status_request
@@ -295,30 +307,33 @@ class Taxi(Unit):
             if reached:
                 self.zone = self.city.getZone(s1)
                 status_request = self.idle()
-            return status_request 
 
         # assigned status
-        if s0 == s1 and p1 != None and s3 == -1:
+        elif s0 == s1 and p1 != None and s3 == -1:
             reached = self.move_Manhattan(dt, (p1.x, p1.y))
             if reached:
                 status_request = self.pickup()
-            return status_request
 
         # delivering status and interzonal travel
-        if s1 == -1 and s2 != -1 and s0 != s2:
+        elif s1 == -1 and s2 != -1 and s0 != s2:
             reached, status_request = self.move_toward(dt, p2.target_zone)
-            return status_request
 
         # delivering status and intrazonal travel
-        if s1 == -1 and s2 != -1 and s0 == s2:
+        elif s1 == -1 and s2 != -1 and s0 == s2:
             if self.prev_dir == 0 or self.prev_dir == 3: xfirst = False
             else: xfirst = True 
             reached = self.move_Manhattan(dt, (p2.dx, p2.dy), xfirst)
             # reached = self.move_Manhattan(dt, (p2.dx, p2.dy), r=True)
             if reached:
                 status_request = self.deliver()
-            return status_request
-            
-    def print(self):
-        s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status
-        print(f"status {s0, s1, s2, s3}, pos {(self.x, self.y)};")
+        
+        # if status change from assigned to delivered, update the status record and count plus one
+        self.update_status_record()
+        idx = self.deliver_index()
+        if idx != None and self.status_change == 0 and self.clock > self.city.T/3:
+            if self.status_record[-1] not in self.deliver_count_table: 
+                self.deliver_count_table[self.status_record[-1]] = [0 for i in range(6)] 
+            self.deliver_count_table[self.status_record[-1]][idx] += 1
+            self.status_change = 1
+        return status_request
+        

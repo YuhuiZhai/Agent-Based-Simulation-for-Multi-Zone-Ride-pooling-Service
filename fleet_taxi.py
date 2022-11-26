@@ -370,6 +370,7 @@ class Taxifleet(Fleet):
         else: passenger.rs_status = 1
         prev_status = opt_veh.status 
         passenger.update_dist_info(dist_info)
+        opt_veh.update_status_record()
         status_request = opt_veh.assign(passenger)
         self.changeVehStatus(status_request)
         self.changeZoneStatus(status_request)

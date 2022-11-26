@@ -145,15 +145,11 @@ print("-------8-------")
 # s.export_state_number()
 
 # 9
-# fleet_m = [[706, 787], [3254, 706]]
-# rebalance_m[2][0] = 750.7914738
-# rebalance_m[2][1] = 891.4509837
-# rebalance_m[2][3] = 750.7914738
-fleet_m = [[821, 1035], [1799, 420]]
-rebalance_m[2][0] = 806.245743
-rebalance_m[2][1] = 961.33
-rebalance_m[2][3] = 816.15
-
+fleet_m = [[291, 468], [1584, 291]]
+rebalance_m[1][3] = 290.78
+rebalance_m[2][0] = 793.55
+rebalance_m[2][3] = 502.83
+print(rebalance_m)
 city = City(length=10, n=2, max_v=25)
 s = Simulation(city=city, dt=1/3600, T=10, lmd_matrix=lmd_m, fleet_matrix=fleet_m, rebalance_matrix=rebalance_m)
 s.simple_serve()

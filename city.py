@@ -76,6 +76,11 @@ class City:
                         omega.add(k)
                 self.omega_sets[(i, j)] = omega
         return 
+        
+    # function for warming process
+    def assignT(self, T):
+        self.T = T
+        return 
 
     def omega(self, i, j):
         return self.omega_sets[(i, j)]
