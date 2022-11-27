@@ -244,7 +244,8 @@ class Taxi(Unit):
             # inflow ci0ii
             if ps0 != s0: return 0
             # inflow piii0_i
-            elif ps0 == s0 and ps1 == s0: return 1
+            elif ps0 == s0 and ps1 == s0: 
+                return 1
         # (i, 0, i, j)
         elif s0 == s2 and s0 != s3 and s3 != -1:
             # inflow ci0ij
@@ -264,7 +265,7 @@ class Taxi(Unit):
             # inflow ci0i0
             if ps0 != s0: return 0
             # inflow pii00_i
-            elif ps0 == ps1 and ps1 == -1: return 1
+            elif ps0 == ps1 and ps2 == -1: return 1
             # inflow di0i0
             elif len(self.status_record) > 2:
                 (pps0, pps1, pps2, pps3) = self.status_record[-3]
