@@ -45,9 +45,11 @@ class Simulation:
         for t in tqdm(self.timeline, desc="simple_serve loading"):
             p_id, p = self.events.head()
             while (not self.events.empty() and p.t_start < t):
+                # unserved passenger exists
                 opt_veh, dist, prev_status = self.fleet.serve(p)
                 if opt_veh == None:
                     self.unserved[p.zone.id] += 1 
+                    p.status = -1
                 self.update_flow_table(0, prev_status)
                 self.events.dequeue()
                 p_id, p = self.events.head()
@@ -327,7 +329,7 @@ class Simulation:
         self.deliver_count_table = table
         return table 
 
-    def export_deliver_time(self):
+    def export_deliver_dist(self):
         self.export_deliver_count()
         def avg(status, deliver_type):
             if status not in self.deliver_time_table or status not in self.deliver_count_table:
@@ -428,7 +430,11 @@ class Simulation:
 
     # export state transition information 
     def export_state_number(self, full=False, shift=1):
-        workbook = xw.Workbook(f"{self.fleet_m}_state_number.xlsx")
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        path_exist = os.path.exists(f"{dir_path}\state_number")
+        if not path_exist:
+            os.makedirs(f"{dir_path}\state_number")
+        workbook = xw.Workbook(f"{dir_path}\state_number\{self.fleet_m}_state_number.xlsx")
         cell_format = workbook.add_format()
         cell_format.set_bold()
         cell_format.set_font_color('red')
@@ -475,14 +481,22 @@ class Simulation:
         return 
 
     def export_passenger_time(self, full=False):
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        path_exist = os.path.exists(f"{dir_path}\passenger_time")
+        if not path_exist:
+            os.makedirs(f"{dir_path}\passenger_time")
         for info in self.events.queue:
             p = info[1]
-            if p.status != 3:
-                continue
             if p.t_start <= self.T*1/3:
                 continue
-            self.traveling_ts[p.zone.id][p.target_zone.id][p.rs_status].append(p.t_end - p.t_start)
-        workbook = xw.Workbook(f"{self.fleet_m}_passenger_time.xlsx")
+            # if p.status == -1: 
+            #     ozone = self.city.getZone(p.zone.id)
+            #     dzone = self.city.getZone(p.target_zone.id) 
+            #     dist = abs(ozone.center[0]-dzone.center[0]) + abs(ozone.center[1]-dzone.center[1])
+            #     self.traveling_ts[p.zone.id][p.target_zone.id][0].append((dist + self.city.l)/self.city.max_v)
+            if p.status == 3:
+                self.traveling_ts[p.zone.id][p.target_zone.id][p.rs_status].append(p.t_end - p.t_start)
+        workbook = xw.Workbook(f"{dir_path}\passenger_time\{self.fleet_m}_travel_time.xlsx")
         worksheet0 = workbook.add_worksheet("passenger total traveling time")
         if full:
             worksheet1 = workbook.add_worksheet("passenger time of caller")
