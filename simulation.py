@@ -17,13 +17,12 @@ class Simulation:
         self.timeline = None
         self.fleet_info = [] # list of [ax, ay], [sx, sy], [ix, iy]
         self.passenger_info = [] # list of [px, py]
+        self.city_number = self.city.n**2 
 
-        # dictionary storing unserved number of passenger
-        self.unserved = {i:0 for i in range(self.city.n**2)}
         # 3 dimensional list storing the traveling time of passenger 
-        self.traveling_ts = [[[[], []] for j in range(self.city.n**2)] for i in range(self.city.n**2)]
+        self.traveling_ts = [[[[], []] for j in range(self.city_number)] for i in range(self.city_number)]
         # double dictionary for state number and transition rate, just like fleet.zone_group
-        self.status_record = {i:{} for i in range(self.city.n**2)}
+        self.status_record = {i:{} for i in range(self.city_number)}
         self.idx = 0
 
         # record of vehicle positions
@@ -34,6 +33,12 @@ class Simulation:
         self.flow_table = [{}, {}, {}, {}, {}, {}]
         # record of total weighted state number P
         self.Ps = []
+        
+        # dictionary storing unserved number of passenger
+        self.unserved_number = {i:0 for i in range(self.city_number)}
+        # record of unserved information [info = [starting time, ozone, dzone, direction, ni0i0, sum_ni0j0]]
+        self.unserved_record = []
+
     
     def move(self):
         self.clock += self.dt
@@ -47,7 +52,7 @@ class Simulation:
             while (not self.events.empty() and p.t_start < t):
                 opt_veh, dist, prev_status = self.fleet.serve(p)
                 if opt_veh == None:
-                    self.unserved[p.zone.id] += 1 
+                    self.update_unserved(p)
                 self.update_flow_table(0, prev_status)
                 self.events.dequeue()
                 p_id, p = self.events.head()
@@ -56,6 +61,28 @@ class Simulation:
             self.move()
             self.update()
         return 
+
+    def update_unserved(self, passenger):
+        self.unserved_number[passenger.zone.id] += 1 
+        # record is a list [starting time, ozone, dzone, direction, ni0i0, sum_ni0j0]
+        record = ["" for i in range(6)]
+        record[0] = passenger.t_start
+        O, D, = passenger.odzone()
+        record[1], record[2] = O, D
+        if O == D: record[3] = self.city.direction_helper(*passenger.location())
+        if O not in self.status_record: 
+            record[4], record[5] = 0, 0
+        else:
+            ni0i0 = self.status_record[O][(-1, O, -1)] if (-1, O, -1) in self.status_record[O] else 0
+            sum_ni0j0 = 0
+            for i in range(self.city_number):
+                if i == O:continue
+                ni0j0 = self.status_record[O][(-1, i, -1)] if (-1, i, -1) in self.status_record[O] else 0
+                sum_ni0j0 += ni0j0
+            record[4], record[5] = ni0i0, ni0j0
+        self.unserved_record.append(record)
+        return record
+
 
     def update_state_transition(self):
         for zone_id in self.fleet.zone_group:
@@ -337,7 +364,7 @@ class Simulation:
             average = total_time / total_count if total_count != 0 else None            
             return average
         result = [[] for i in range(14)]
-        for i in range(self.city.n**2):
+        for i in range(self.city_number):
             i0ii = (i, -1, i, i)
             result[0].append(avg(i0ii, 0))
             result[1].append(avg(i0ii, 1))
@@ -346,7 +373,7 @@ class Simulation:
             result[8].append(avg(i0i0, 1))
             result[9].append(avg(i0i0, 3))
             result[10].append(avg(i0i0, 4))
-            for j in range(self.city.n**2):
+            for j in range(self.city_number):
                 if j == i: 
                     continue
                 i0ij = (i, -1, i, j)                 
@@ -357,7 +384,7 @@ class Simulation:
                 result[11].append(avg(i0j0, 0))
                 result[12].append(avg(i0j0, 1))
                 result[13].append(avg(i0j0, 5))
-                for k in range(self.city.n**2):
+                for k in range(self.city_number):
                     if k == i:
                         continue
                     i0jk = (i, -1, j, k) 
@@ -467,17 +494,19 @@ class Simulation:
         for i in range(self.city.n):
             for j in range(self.city.n):
                 zone_id = i*self.city.n + j
-                worksheet2.write(i+1, j, self.unserved[zone_id])   
+                worksheet2.write(i+1, j, self.unserved_number[zone_id])   
         wb = workbook.add_worksheet("P")     
         wb.write(0, 0, "P/sum lamda")
         wb.write(0, 1, self.export_P_over_lambda())
         workbook.close()
         return 
 
-    def export_passenger_time(self, full=False):
+    def export_passenger_time(self, vd=False, full=False):
         for info in self.events.queue:
             p = info[1]
             if p.status != 3:
+                continue
+            if vd and p.vd_status == 0: 
                 continue
             if p.t_start <= self.T*1/3:
                 continue
@@ -490,15 +519,15 @@ class Simulation:
             worksheet3 = workbook.add_worksheet("distance of choices")
             worksheet1.write(0, 0, "zone i \ zone j")
             worksheet2.write(0, 0, "zone i \ zone j")
-            for i in range(self.city.n**2):
+            for i in range(self.city_number):
                 worksheet1.write(0, i+1, f"{i}")
                 worksheet1.write(i+1, 0, f"{i}")
                 worksheet2.write(0, i+1, f"{i}")
                 worksheet2.write(i+1, 0, f"{i}")
         total_sum, total_sum0, total_sum1 = 0, 0, 0
         total_num, total_num0, total_num1 = 0, 0, 0
-        for i in range(self.city.n**2):
-            for j in range(self.city.n**2):
+        for i in range(self.city_number):
+            for j in range(self.city_number):
                 l0, l1 = len(self.traveling_ts[i][j][0]), len(self.traveling_ts[i][j][1])
                 total_sum += (sum(self.traveling_ts[i][j][0]) + sum(self.traveling_ts[i][j][1]))
                 total_sum0 += sum(self.traveling_ts[i][j][0])
@@ -518,12 +547,12 @@ class Simulation:
         worksheet0.write(6, 0, "average seeker door to door traveling time (hr)")
         worksheet0.write(7, 0, total_sum1/total_num1)
         if full:
-            new_row_idx = self.city.n**2 + 2
+            new_row_idx = self.city_number + 2
             worksheet1.write(new_row_idx, 0, "passenger travelling time distribution")
             worksheet2.write(new_row_idx, 0, "passenger travelling time distribution")
             idx = 0
-            for i in range(self.city.n**2):
-                for j in range(self.city.n**2):
+            for i in range(self.city_number):
+                for j in range(self.city_number):
                     worksheet1.write(new_row_idx+1, idx, f"{(i, j)}")
                     worksheet2.write(new_row_idx+1, idx, f"{(i, j)}")
                     for k, t in enumerate(self.traveling_ts[i][j][0]):       
@@ -536,8 +565,8 @@ class Simulation:
                 worksheet3.write(0, i, f"Case {i}")
             curr_row = 1
             dist_infos = self.events.dist_helper()
-            for i in range(self.city.n**2):
-                for j in range(self.city.n**2):
+            for i in range(self.city_number):
+                for j in range(self.city_number):
                     dist_ij = dist_infos[(i, j)]
                     for info in dist_ij:
                         worksheet3.write(curr_row, 0, f"{(i, j)}")
@@ -547,4 +576,7 @@ class Simulation:
         workbook.close()
         return 
 
-    
+    def export_uneserved_record(self):
+        
+        self.unserved_record
+

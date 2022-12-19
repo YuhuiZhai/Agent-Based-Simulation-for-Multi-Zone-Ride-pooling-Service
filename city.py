@@ -76,7 +76,16 @@ class City:
                         omega.add(k)
                 self.omega_sets[(i, j)] = omega
         return 
-        
+    
+    # return the direction of movement
+    def direction_helper(self, xy1, xy2):
+        temp = {(1, 0):"E", (0, 1):"N", (-1, 0):"W", (0, -1):"S",  
+                (1, 1):"NE", (-1, 1):"NW", (-1, -1):"SW", (1, -1):"SE",
+                (0, 0):"Same Point"}
+        xdir, ydir = self.dir(xy1, xy2)
+        dir = temp[(xdir, ydir)] 
+        return dir
+
     # function for warming process
     def assignT(self, T):
         self.T = T

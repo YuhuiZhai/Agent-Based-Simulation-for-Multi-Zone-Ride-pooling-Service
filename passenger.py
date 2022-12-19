@@ -22,6 +22,8 @@ class Passenger(Unit):
         self.rs_status = None
         # recorded choices for passengers
         self.dist_info = [0, 0, 0, 0, 0]
+        # vertical detour status 
+        self.vd_status = 0
 
     def update_dist_info(self, dist_info:list):
         self.dist_info = dist_info
@@ -31,11 +33,12 @@ class Passenger(Unit):
     def dist(self):
         return abs(self.dx - self.x) + abs(self.dy - self.y)
 
+    def odzone(self):
+        return (self.zone.id, self.target_zone.id)
+
     def location(self):
         return (self.x, self.y), (self.dx, self.dy)
 
     def print(self):
         print(f"pos {(self.x, self.y)}, target pos {(self.dx, self.dy)}, zone {self.zone.id}, target zone{self.target_zone.id}")
         return 
-
-    

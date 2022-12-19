@@ -4,7 +4,6 @@ import random
 class Unit:
     def __init__(self, id, zone:Zone, init_status):
         self.id, self.zone = id, zone
-        self.clock = 0
         self.speed = zone.max_v
         self.x, self.y = self.zone.generate_location()
         self.idle_position = None
@@ -14,9 +13,14 @@ class Unit:
         self.dir = None
         # when status changes, status_change_count should be normalized to 0. 
         self.status_change = 0
-    
+        # record the duration of a status
+        self.status_duration_record = {}
+
     # change self status to new status, and also return message to upper level
     def changeStatusTo(self, new_status):
+        if self.status == new_status:
+            if self.status not in self.status_duration_record: self.status_duration_record[self.status] = []
+            self.status_duration_record[self.status].append(1)
         old_status = self.status
         self.status = new_status
         self.status_change = 0
@@ -61,8 +65,14 @@ class Unit:
         if xout: out_dir = 0
         elif yout: out_dir = 1
         return xout or yout, out_dir
-        
     
-
+    # get average duration of each status
+    def get_status_duration(self):
+        status_duration = {}
+        for status in self.status_duration_record:
+            temp = self.status_duration_record[status]
+            avg = sum(temp)/len(temp) if len(temp) != 0 else 0
+            status_duration[status] = avg
+        return status_duration
 
 

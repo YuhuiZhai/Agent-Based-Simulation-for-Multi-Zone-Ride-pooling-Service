@@ -59,6 +59,10 @@ class Taxi(Unit):
         self.turning_xy = None
         self.curr_dir = None
         s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status
+        # if p2 exists then its travel is interrupted with a vertical detour 
+        if p2 != None: 
+            passenger.vd_status = 1
+            p2.vd_status = 1
         self.taxi_status = (s0, (s0, passenger), (s2, p2), (s3, p3))   
         new_group_status = (s0, s0, s2, s3)
         status_request = self.changeStatusTo(new_group_status)
@@ -329,6 +333,10 @@ class Taxi(Unit):
             if reached:
                 status_request = self.deliver()
         
+        # no change in status
+        if status_request == None:
+            self.changeStatusTo(self.status)
+
         # if status change from assigned to delivered, update the status record and count plus one
         self.update_status_record()
         idx = self.deliver_index()
