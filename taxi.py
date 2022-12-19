@@ -298,10 +298,6 @@ class Taxi(Unit):
         self.clock += dt
         s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status
         status_request = None
-
-        # idle status
-        if s1 == -1 and s2 == -1 and s3 == -1:
-            return status_request
         
         self.dist += dt*self.speed     
 

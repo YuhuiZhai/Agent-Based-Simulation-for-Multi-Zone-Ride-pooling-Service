@@ -3,7 +3,7 @@ import random
 
 class Unit:
     def __init__(self, id, zone:Zone, init_status):
-        self.id, self.zone = id, zone
+        self.clock, self.id, self.zone = 0, id, zone
         self.speed = zone.max_v
         self.x, self.y = self.zone.generate_location()
         self.idle_position = None
@@ -15,12 +15,18 @@ class Unit:
         self.status_change = 0
         # record the duration of a status
         self.status_duration_record = {}
-
+        self.status_duration_count = {}
     # change self status to new status, and also return message to upper level
     def changeStatusTo(self, new_status):
         if self.status == new_status:
-            if self.status not in self.status_duration_record: self.status_duration_record[self.status] = []
+            if self.status not in self.status_duration_record:
+                self.status_duration_record[self.status] = []
+                self.status_duration_count[self.status] = 1 
             self.status_duration_record[self.status].append(1)
+        else:
+            if self.status not in self.status_duration_count: self.status_duration_count[self.status] = 1
+            elif new_status not in self.status_duration_count: self.status_duration_count[new_status] = 1
+            else: self.status_duration_count[self.status] += 1
         old_status = self.status
         self.status = new_status
         self.status_change = 0
@@ -70,8 +76,9 @@ class Unit:
     def get_status_duration(self):
         status_duration = {}
         for status in self.status_duration_record:
-            temp = self.status_duration_record[status]
-            avg = sum(temp)/len(temp) if len(temp) != 0 else 0
+            cumulative_time = sum(self.status_duration_record[status])
+            cumulative_count = self.status_duration_count[status]
+            avg = cumulative_time / cumulative_count
             status_duration[status] = avg
         return status_duration
 

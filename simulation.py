@@ -50,6 +50,7 @@ class Simulation:
         for t in tqdm(self.timeline, desc="simple_serve loading"):
             p_id, p = self.events.head()
             while (not self.events.empty() and p.t_start < t):
+                # unserved passenger exists
                 opt_veh, dist, prev_status = self.fleet.serve(p)
                 if opt_veh == None:
                     self.update_unserved(p)
@@ -73,13 +74,13 @@ class Simulation:
         if O not in self.status_record: 
             record[4], record[5] = 0, 0
         else:
-            ni0i0 = self.status_record[O][(-1, O, -1)] if (-1, O, -1) in self.status_record[O] else 0
+            ni0i0 = self.status_record[O][(-1, O, -1)][-1] if (-1, O, -1) in self.status_record[O] else 0
             sum_ni0j0 = 0
             for i in range(self.city_number):
                 if i == O:continue
-                ni0j0 = self.status_record[O][(-1, i, -1)] if (-1, i, -1) in self.status_record[O] else 0
+                ni0j0 = self.status_record[O][(-1, i, -1)][-1] if (-1, i, -1) in self.status_record[O] else 0
                 sum_ni0j0 += ni0j0
-            record[4], record[5] = ni0i0, ni0j0
+            record[4], record[5] = ni0i0, sum_ni0j0
         self.unserved_record.append(record)
         return record
 
@@ -354,7 +355,7 @@ class Simulation:
         self.deliver_count_table = table
         return table 
 
-    def export_deliver_time(self):
+    def export_deliver_dist(self):
         self.export_deliver_count()
         def avg(status, deliver_type):
             if status not in self.deliver_time_table or status not in self.deliver_count_table:
@@ -455,7 +456,11 @@ class Simulation:
 
     # export state transition information 
     def export_state_number(self, full=False, shift=1):
-        workbook = xw.Workbook(f"{self.fleet_m}_state_number.xlsx")
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        path_exist = os.path.exists(f"{dir_path}\state_number")
+        if not path_exist:
+            os.makedirs(f"{dir_path}\state_number")
+        workbook = xw.Workbook(f"{dir_path}\state_number\{self.fleet_m}_state_number.xlsx")
         cell_format = workbook.add_format()
         cell_format.set_bold()
         cell_format.set_font_color('red')
@@ -501,17 +506,23 @@ class Simulation:
         workbook.close()
         return 
 
-    def export_passenger_time(self, vd=False, full=False):
+    def export_passenger_time(self, full=False):
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        path_exist = os.path.exists(f"{dir_path}\passenger_time")
+        if not path_exist:
+            os.makedirs(f"{dir_path}\passenger_time")
         for info in self.events.queue:
             p = info[1]
-            if p.status != 3:
-                continue
-            if vd and p.vd_status == 0: 
-                continue
             if p.t_start <= self.T*1/3:
                 continue
-            self.traveling_ts[p.zone.id][p.target_zone.id][p.rs_status].append(p.t_end - p.t_start)
-        workbook = xw.Workbook(f"{self.fleet_m}_passenger_time.xlsx")
+            # if p.status == -1: 
+            #     ozone = self.city.getZone(p.zone.id)
+            #     dzone = self.city.getZone(p.target_zone.id) 
+            #     dist = abs(ozone.center[0]-dzone.center[0]) + abs(ozone.center[1]-dzone.center[1])
+            #     self.traveling_ts[p.zone.id][p.target_zone.id][0].append((dist + self.city.l)/self.city.max_v)
+            if p.status == 3:
+                self.traveling_ts[p.zone.id][p.target_zone.id][p.rs_status].append(p.t_end - p.t_start)
+        workbook = xw.Workbook(f"{dir_path}\passenger_time\{self.fleet_m}_travel_time.xlsx")
         worksheet0 = workbook.add_worksheet("passenger total traveling time")
         if full:
             worksheet1 = workbook.add_worksheet("passenger time of caller")
@@ -577,6 +588,84 @@ class Simulation:
         return 
 
     def export_uneserved_record(self):
-        
-        self.unserved_record
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        path_exist = os.path.exists(f"{dir_path}\info_unserved")
+        if not path_exist:
+            os.makedirs(f"{dir_path}\info_unserved")
+        workbook = xw.Workbook(f"{dir_path}\info_unserved\{self.fleet_m}_unserved.xlsx")
+        ws1 = workbook.add_worksheet("unserved information")
+        ws1.write(0, 0, "Incoming time"); ws1.write(0, 1, "Origin"); ws1.write(0, 2, "Destination")
+        ws1.write(0, 3, "Direction"); ws1.write(0, 4, "ni0i0"); ws1.write(0, 5, "sum_ni0j0")
+        for idx, i in enumerate(self.unserved_record):
+            ws1.write(idx+1, 0, i[0]); ws1.write(idx+1, 1, i[1]); ws1.write(idx+1, 2, i[2])
+            ws1.write(idx+1, 3, i[3]); ws1.write(idx+1, 4, i[4]); ws1.write(idx+1, 5, i[5])
+        ws2 = workbook.add_worksheet("unserved number")
+        ws2.write(0, 0, "unserved number in each zone")
+        for i in range(self.city.n):
+            for j in range(self.city.n):
+                zone_id = i*self.city.n + j
+                ws2.write(i+1, j, self.unserved_number[zone_id])   
+        workbook.close()
 
+    def export_status_duration(self):
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        path_exist = os.path.exists(f"{dir_path}\status_duration")
+        if not path_exist:
+            os.makedirs(f"{dir_path}\status_duration")
+        workbook = xw.Workbook(f"{dir_path}\status_duration\{self.fleet_m}_status_duration.xlsx")
+        ws = [0 for i in range(self.city_number)]
+        text = {0:"Idle", 2:"One Pax Assigned", 4:"Two Pax Assigned", 6:"One Pax Delivered", 8:"Two Pax Delivered", 10:"Others"}
+        for i in range(self.city_number):
+            ws[i] = workbook.add_worksheet(f"Zone_{i}")
+            for j in range(12):
+                if j in text: ws[i].write(0, j, text[j])
+                else: ws[i].write(0, j, "Time (hr)")
+        status_summary = {}
+        # combine the status duration of each vehicle together
+        for veh_id in self.fleet.vehicles:
+            veh = self.fleet.vehicles[veh_id]
+            status_duration = veh.get_status_duration()
+            for status in status_duration:
+                if status not in status_summary:
+                    status_summary[status] = []
+                status_summary[status].append(status_duration[status]*self.dt)
+        # get the average status duration
+        for status in status_summary:
+            status_summary[status] = sum(status_summary[status]) / len(status_summary[status]) if len(status_summary[status]) != 0 else -1
+        # record of correct col idx to put in 
+        row = [{2*i:1 for i in range(6)} for j in range(self.city_number)]
+        def helper(col_idx):
+            row_idx = row[s0][col_idx]
+            row[s0][col_idx] += 1
+            return row_idx
+        for status in status_summary:
+            s0, s1, s2, s3 = status
+            # idle
+            if s1 == -1 and s2 == -1 and s3 == -1:
+                col_idx = 0
+            # assigned
+            elif s1 == s0 and s3 == -1:
+                # One pax
+                if s2 == -1:
+                    col_idx = 2
+                # Two pax
+                else:
+                    col_idx = 4
+            # deliver
+            elif s2 != -1:
+                # One pax
+                if s3 == -1:
+                    col_idx = 6
+                else:
+                    col_idx = 8
+            # Others
+            else:
+                col_idx = 10
+            row_idx = helper(col_idx)
+            ws[s0].write(row_idx, col_idx, f"{status}"); ws[s0].write(row_idx, col_idx+1, status_summary[status])
+        workbook.close()
+        return         
+        
+
+                    
+            
