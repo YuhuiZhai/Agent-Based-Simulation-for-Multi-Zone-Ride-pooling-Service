@@ -41,18 +41,20 @@ for i in range(2, 17):
     fleet_m[0][1] = ws.cell(row=i, column=2).value
     fleet_m[1][0] = ws.cell(row=i, column=3).value
     fleet_m[1][1] = ws.cell(row=i, column=4).value
-    # rebalance_m[2][0] = ws.cell(row=i, column=5).value
-    # rebalance_m[2][1] = ws.cell(row=i, column=6).value
-    # rebalance_m[2][3] = ws.cell(row=i, column=7).value
+    rebalance_m[2][0] = ws.cell(row=i, column=5).value
+    rebalance_m[2][1] = ws.cell(row=i, column=6).value
+    rebalance_m[2][3] = ws.cell(row=i, column=7).value
     print(fleet_m)
     print(rebalance_m)
     city = City(length=10, n=2, max_v=25)
-    s = Simulation(city=city, dt=1/3600, T=10, lmd_matrix=lmd_m, fleet_matrix=fleet_m)
+    s = Simulation(city=city, dt=1/3600, T=10, lmd_matrix=lmd_m, fleet_matrix=fleet_m, rebalance_matrix=rebalance_m)
     s.simple_serve()
     s.export_state_number()
     s.export_passenger_time()
     s.export_P_over_lambda()
     s.export_deliver_dist()
+    s.export_uneserved_record()
+    s.export_status_duration()
 
 
 

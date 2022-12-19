@@ -593,12 +593,17 @@ class Simulation:
         if not path_exist:
             os.makedirs(f"{dir_path}\info_unserved")
         workbook = xw.Workbook(f"{dir_path}\info_unserved\{self.fleet_m}_unserved.xlsx")
-        ws1 = workbook.add_worksheet("unserved information")
-        ws1.write(0, 0, "Incoming time"); ws1.write(0, 1, "Origin"); ws1.write(0, 2, "Destination")
-        ws1.write(0, 3, "Direction"); ws1.write(0, 4, "ni0i0"); ws1.write(0, 5, "sum_ni0j0")
-        for idx, i in enumerate(self.unserved_record):
-            ws1.write(idx+1, 0, i[0]); ws1.write(idx+1, 1, i[1]); ws1.write(idx+1, 2, i[2])
-            ws1.write(idx+1, 3, i[3]); ws1.write(idx+1, 4, i[4]); ws1.write(idx+1, 5, i[5])
+        ws = [0 for i in range(self.city_number)]
+        for i in range(self.city_number):
+            ws[i] = workbook.add_worksheet(f"Zone_{i+1}")
+            ws[i].write(0, 0, "Incoming time"); ws[i].write(0, 1, "Origin"); ws[i].write(0, 2, "Destination")
+            ws[i].write(0, 3, "Direction"); ws[i].write(0, 4, "ni0i0"); ws[i].write(0, 5, "sum_ni0j0")
+        row = [1 for i in range(self.city_number)]
+        for i in self.unserved_record:
+            zone_id = i[1]
+            ws[zone_id].write(row[zone_id], 0, i[0]); ws[zone_id].write(row[zone_id], 1, i[1]); ws[zone_id].write(row[zone_id], 2, i[2])
+            ws[zone_id].write(row[zone_id], 3, i[3]); ws[zone_id].write(row[zone_id], 4, i[4]); ws[zone_id].write(row[zone_id], 5, i[5])
+            row[zone_id] += 1
         ws2 = workbook.add_worksheet("unserved number")
         ws2.write(0, 0, "unserved number in each zone")
         for i in range(self.city.n):
