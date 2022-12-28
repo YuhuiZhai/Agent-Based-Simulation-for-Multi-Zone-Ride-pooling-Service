@@ -8,11 +8,10 @@ for i in range(4):
     rebalance_m.append([])
     prob_matrix.append([])
     for j in range(4):
-        # if j == 2:
-        #     lmd_m[i].append(1400)
-        # else:
-        #     lmd_m[i].append(200)
-        lmd_m[i].append(1000)
+        if j == 2:
+            lmd_m[i].append(1400)
+        else:
+            lmd_m[i].append(200)
         rebalance_m[i].append(0)
         prob_matrix[i].append([0, 0, 0, 0])
 prob_matrix[0][1][1] = 1.0
@@ -46,15 +45,15 @@ for i in range(2, 17):
     rebalance_m[2][3] = ws.cell(row=i, column=7).value
     print(fleet_m)
     print(rebalance_m)
+    print(lmd_m)
     city = City(length=10, n=2, max_v=25)
     s = Simulation(city=city, dt=1/3600, T=10, lmd_matrix=lmd_m, fleet_matrix=fleet_m, rebalance_matrix=rebalance_m)
     s.simple_serve()
     s.export_state_number()
     s.export_passenger_time()
     s.export_P_over_lambda()
-    s.export_deliver_dist()
     s.export_uneserved_record()
-    s.export_status_duration()
+    s.export_delivery_distance()
 
 
 

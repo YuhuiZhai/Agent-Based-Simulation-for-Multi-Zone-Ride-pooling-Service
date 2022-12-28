@@ -24,7 +24,10 @@ class Taxi(Unit):
         self.assigned_dist_record = []
         self.dist = 0
         self.deliver_count_table = {}
-
+        # the table of status and trip distance, when status changes, record the od of previous trip
+        # first item means status, second item means the start point and end point of current status
+        self.delivery_distance_table = [[self.taxi_status, [self.location(), None]]]
+    
     # return current position
     def location(self):
         return (self.x, self.y)
@@ -63,8 +66,9 @@ class Taxi(Unit):
         if p2 != None: 
             passenger.vd_status = 1
             p2.vd_status = 1
-        self.taxi_status = (s0, (s0, passenger), (s2, p2), (s3, p3))   
-        new_group_status = (s0, s0, s2, s3)
+        new_taxi_status = (s0, (s0, passenger), (s2, p2), (s3, p3))  
+        new_group_status = (s0, s0, s2, s3) 
+        self.update_taxi_status(new_taxi_status)
         status_request = self.changeStatusTo(new_group_status)
         return status_request
 
@@ -80,11 +84,12 @@ class Taxi(Unit):
         self.turning_xy = None
         pfirst, psecond = self.dist_helper(pos, p1, p2)
         if psecond != None:
-            self.taxi_status = (p1.zone.id, (-1, None), (pfirst.target_zone.id, pfirst), (psecond.target_zone.id, psecond))
+            new_taxi_status = (p1.zone.id, (-1, None), (pfirst.target_zone.id, pfirst), (psecond.target_zone.id, psecond))
             new_group_status = (p1.zone.id, -1, pfirst.target_zone.id, psecond.target_zone.id)
         else:
-            self.taxi_status = (p1.zone.id, (-1, None), (pfirst.target_zone.id, pfirst), (-1, None))    
+            new_taxi_status = (p1.zone.id, (-1, None), (pfirst.target_zone.id, pfirst), (-1, None))    
             new_group_status = (p1.zone.id, -1, pfirst.target_zone.id, -1)
+        self.update_taxi_status(new_taxi_status)
         status_request = self.changeStatusTo(new_group_status)
         return status_request
 
@@ -96,8 +101,9 @@ class Taxi(Unit):
             return 
         s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status   
         p2.status, p2.t_end = 3, self.clock
-        self.taxi_status = (s0, (s1, p1), (s3, p3), (-1, None))
+        new_taxi_status = (s0, (s1, p1), (s3, p3), (-1, None))
         new_group_status = (s0, s1, s3, -1)
+        self.update_taxi_status(new_taxi_status)
         status_request = self.changeStatusTo(new_group_status)
         return status_request
         
@@ -109,8 +115,9 @@ class Taxi(Unit):
             return 
         s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status
         self.idle_position = zone.generate_location()
-        self.taxi_status = (s0, (zone.id, None), (-1, None), (-1, None))
+        new_taxi_status = (s0, (zone.id, None), (-1, None), (-1, None))
         new_group_status = (s0, zone.id, -1, -1)
+        self.update_taxi_status(new_taxi_status)
         status_request = self.changeStatusTo(new_group_status)
         return status_request
     
@@ -118,8 +125,9 @@ class Taxi(Unit):
     def idle(self):
         self.idle_position = None
         self.turning_xy = None
-        self.taxi_status = (self.zone.id, (-1, None), (-1, None), (-1, None))
+        new_taxi_status = (self.zone.id, (-1, None), (-1, None), (-1, None))
         new_group_status = (self.zone.id, -1, -1, -1)
+        self.update_taxi_status(new_taxi_status)
         status_request = self.changeStatusTo(new_group_status)
         return status_request
 
@@ -127,8 +135,9 @@ class Taxi(Unit):
     # status will then be updated
     def cross(self):
         s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status
-        self.taxi_status = (self.zone.id, (s1, p1), (s2, p2), (s3, p3))
+        new_taxi_status = (self.zone.id, (s1, p1), (s2, p2), (s3, p3))
         new_group_status = (self.zone.id, s1, s2, s3)
+        self.update_taxi_status(new_taxi_status)
         status_request = self.changeStatusTo(new_group_status)
         return status_request
 
@@ -237,55 +246,121 @@ class Taxi(Unit):
             status_request = self.cross()
         return reached, status_request
 
-    def deliver_index(self):
-        if len(self.status_record) < 2: return None
-        (s0, s1, s2, s3) = self.status_record[-1]
-        (ps0, ps1, ps2, ps3) = self.status_record[-2]
-        if s1 != -1 or s2 == -1:
-            return None 
-        # (i, 0, i, i)
-        if s0 == s2 and s2 == s3:
-            # inflow ci0ii
-            if ps0 != s0: return 0
-            # inflow piii0_i
-            elif ps0 == s0 and ps1 == s0: 
-                return 1
-        # (i, 0, i, j)
-        elif s0 == s2 and s0 != s3 and s3 != -1:
-            # inflow ci0ij
-            if ps0 != s0: return 0   
-            # inflow piii0_j
-            elif ps0 == s0 and ps1 == s0 and ps2 == s0: return 2
-            # inflow piij0_i
-            elif ps0 == s0 and ps1 == s0 and ps2 == s3: return 1
-        # (i, 0, j, k)
-        elif s0 != s2 and s2 != s3 and s3 != -1:
-            # inflow ci0jk
-            if ps0 != s0: return 0
-            # inflow piij0_k
-            elif ps1 == ps0 and ps2 == s2: return 2
+    # input are current status and trip information of previous status
+    def get_deliver_index(self, prev_trip, curr_trip):
+        def check_lateral_detour(loc1, loc2):
+            if loc1[0] == loc2[0] or loc1[1] == loc2[1]:
+                return False
+            return True
+        curr_status, [loc1, loc2] = curr_trip
+        prev_status, _ = prev_trip
+        (s0, (s1, p1), (s2, p2), (s3, p3)) = curr_status
+        (p_s0, (p_s1, p_p1), (p_s2, p_p2), (p_s3, p_p3)) = prev_status
+        idx1, idx2 = None, None
         # (i, 0, i, 0)
-        elif s0 == s2 and s3 == -1:
-            # inflow ci0i0
-            if ps0 != s0: return 0
-            # inflow pii00_i
-            elif ps0 == ps1 and ps2 == -1: return 1
-            # inflow di0i0
-            elif len(self.status_record) > 2:
-                (pps0, pps1, pps2, pps3) = self.status_record[-3]
-                # inflow di0i0, from ci0ii
-                if pps0 != s0 and pps1 == -1 and pps2 == pps3: return 3
-                # inflow di0i0, from piii0_i
-                elif pps0 == s0 and pps1 == s0 and pps2 == s0: return 4
+        if s0 == s2 and s1 == -1 and s3 == -1:
+            idx1 = 0
+            # Case 1 prev status (i, i, 0, 0), inflow pii00_i
+            if p_s0 == s0 and p_s0 == p_s1 and p_s2 == -1: idx2 = 0
+            # Case 2,3 prve status (j, 0, i, 0) inflow ci0i0
+            elif p_s0 != s0 and p_s1 == -1 and p_s2 == s0: 
+                # Case 2 there is no lateral detour
+                if not check_lateral_detour(loc1, loc2): idx2 = 1
+                # Case 3 there is lateral detour
+                else: idx2 = 2
+            # Case 4,5 prev status (i, 0, i, i), inflow d_i0ii
+            elif p_s0 == s0 and p_s1 == -1 and p_s2 == p_s0 and p_s3 == p_s0: 
+                # Get the origin and destination zone of passengers
+                o1, d1 = p_p2.odzone()
+                o2, d2 = p_p3.odzone()
+                # Case 4 two intrazonal trips
+                if o1 == s0 and o2 == s0 and d1 == s0 and d2 == s0: idx2 = 3 
+                # Case 5 two interzonal trips
+                elif o1 != s0 and o2 != s0 and d1 == s0 and d2 == s0: idx2 = 4
+        # (i, 0, i, i)
+        elif s0 == s2 and s2 == s3:
+            idx1 = 1
+            # Case 1 prev status (i, i, i, 0)
+            if p_s0 == p_s1 and p_s1 == p_s2: idx2 = 0
+            # Case 2,3 prev status (j, 0, i, i)
+            elif p_s0 != s0 and p_s2 == s0 and p_s3 == s0:
+                # Case 2 there is no lateral detour
+                if not check_lateral_detour(loc1, loc2): idx2 = 1
+                # Case 3 there is lateral detour
+                else: idx2 = 2
         # (i, 0, j, 0)
-        elif s0 != s2 and s3 == -1: 
-            # inflow ci0j0:
-            if ps0 != s0: return 0
-            # inflow pii00_j:
-            elif ps0 == ps1: return 1
-            # inflow di0ij:
-            elif ps0 == ps2 and ps3 == s2: return 5
-        return None
+        elif s0 != s2 and s1 == -1 and s2 != -1 and s3 == -1:
+            idx1 = 2
+            # Case 1 prev status (i, i, 0, 0)
+            if p_s0 == s0 and p_s0 == p_s1 and p_s2 == -1 and p_s3 == -1: idx2 = 0
+            # Case 2 prev status (k, 0, j, 0) and 
+            elif p_s0 != s0 and p_s1 == -1 and p_s2 == s2 and p_s3 == -1: 
+                # starting and ending points are on boundary, indicating the trip is intermediate
+                o1, d1 = p_p2.odzone()
+                if o1 != s0 and d1 != s0: idx2 = 1 
+            # Case 3 prev status (i, 0, i, j)
+            elif p_s0 == s0 and p_s1 == -1 and p_s2 == s0 and p_s3 != -1 and p_s3 != s0: idx2 = 2
+        # (i, 0, i, j)
+        elif s0 == s2 and s1 == -1 and s3 != s0 and s3 != -1:
+            idx1 = 3
+            # Case 1 prev status (i, i, i, 0)
+            if p_s0 == s0 and p_s1 == p_s0 and p_s2 == p_s1: idx2 = 0
+            # Case 2 prev status (i, i, j, 0)
+            elif p_s0 == s0 and p_s1 == s0 and p_s2 != s0 and p_s2 != -1: idx2 = 1
+            # Case 3 prev status (j, 0, i, k)
+            elif p_s0 != s0 and p_s1 == -1 and p_s2 == s0 and p_s3 != s0 and p_s3 != -1: idx2 = 2
+        # (i, 0, j, k)
+        elif s1 == -1 and s2 != s0 and s2 != -1 and s3 != s0 and s3 != -1:
+            idx1 = 4
+            # Case 1 prev status (i, i, j, 0)
+            if p_s0 == s0 and p_s1 == s0 and p_s2 != s0 and p_s2 != -1 and p_s3 == -1: idx2 = 0
+        return idx1, idx2
+    
+    # get the average trip distance of this taxi
+    def get_delivery_distance(self):
+        def get_dist(loc1, loc2):
+            dist = abs(loc1[0]-loc2[0]) + abs(loc1[1]-loc2[1])
+            return dist
+        def convert(taxi_status):
+            (s0, (s1, p1), (s2, p2), (s3, p3))= taxi_status
+            status = (s0, s1, s2, s3)
+            return status
+        prev_trip = None
+        n = len(self.delivery_distance_table)
+        idx_pair = [(0, i) for i in range(5)]
+        for i in range(3): 
+            for j in range(3):
+                idx_pair.append((i+1, j))
+        idx_pair.append((4, 0))
+        # key is (idx1, idx2), value is [sum, count]
+        avg_trip_table = [{i:[0, 0] for i in idx_pair} for j in range(self.city.n**2)] 
+        for i in range(int(n/3), n-1):
+            prev_trip = self.delivery_distance_table[i-1]
+            curr_trip = self.delivery_distance_table[i]
+            next_trip = self.delivery_distance_table[i+1]
+            taxi_status, [loc1, loc2] = curr_trip
+            next_taxi_status, _ = next_trip
+            curr_status, next_status = convert(taxi_status), convert(next_taxi_status)
+            (s0, s1, s2, s3), (n_s0, n_s1, n_s2, n_s3) = curr_status, next_status
+            idx1, idx2 = self.get_deliver_index(prev_trip, curr_trip)
+            if idx1 == None or idx2 == None:
+                continue
+            # Check the next status of first three cases to ensure passenger is actually delivered
+            if (idx1 == 0 and not (next_status == (n_s0, -1, -1, -1))) or \
+               (idx1 == 1 and not (next_status == (n_s0, -1, n_s0, -1))) or \
+               (idx1 == 2 and not (next_status == (n_s0, -1, n_s2, -1))):
+                continue
+            avg_trip_table[s0][(idx1, idx2)][0] += get_dist(loc1, loc2) 
+            avg_trip_table[s0][(idx1, idx2)][1] += 1 
+        for s0 in range(len(avg_trip_table)):
+            for i in avg_trip_table[s0]:
+                if avg_trip_table[s0][i][1] == 0: 
+                    avg_trip_table[s0][i] = None
+                else:
+                    avg_trip_table[s0][i] = avg_trip_table[s0][i][0]/avg_trip_table[s0][i][1]
+        return avg_trip_table
+
+
 
     def update_status_record(self):
         s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status
@@ -293,12 +368,23 @@ class Taxi(Unit):
             self.status_record.append((s0, s1, s2, s3))
         return 
 
+    # update new taxi status
+    def update_taxi_status(self, new_taxi_status):
+        if self.taxi_status == new_taxi_status:
+            return 
+        s0, (s1, p1), (s2, p2), (s3, p3) = new_taxi_status
+        self.delivery_distance_table[-1][1][1] = self.location()
+        self.delivery_distance_table.append([new_taxi_status, [self.location(), None]])
+        self.taxi_status = new_taxi_status
+        return
+
+    # get trip distance of different cases
+
     # movement function between zones
     def move(self, dt):
         self.clock += dt
         s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status
         status_request = None
-        
         self.dist += dt*self.speed     
 
         # rebalance status and interzonal travel
@@ -331,15 +417,10 @@ class Taxi(Unit):
         
         # no change in status
         if status_request == None:
-            self.changeStatusTo(self.status)
+            self.update_taxi_status(self.taxi_status)
 
         # if status change from assigned to delivered, update the status record and count plus one
         self.update_status_record()
-        idx = self.deliver_index()
-        if idx != None and self.status_change == 0 and self.clock > self.city.T/3:
-            if self.status_record[-1] not in self.deliver_count_table: 
-                self.deliver_count_table[self.status_record[-1]] = [0 for i in range(6)] 
-            self.deliver_count_table[self.status_record[-1]][idx] += 1
-            self.status_change = 1
         return status_request
         
+   

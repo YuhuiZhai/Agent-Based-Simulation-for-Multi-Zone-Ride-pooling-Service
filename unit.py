@@ -11,27 +11,15 @@ class Unit:
         self.prev_status = None
         # the direction by impulsion model
         self.dir = None
-        # when status changes, status_change_count should be normalized to 0. 
-        self.status_change = 0
-        # record the duration of a status
-        self.status_duration_record = {}
-        self.status_duration_count = {}
+    
     # change self status to new status, and also return message to upper level
     def changeStatusTo(self, new_status):
-        if self.status == new_status:
-            if self.status not in self.status_duration_record:
-                self.status_duration_record[self.status] = []
-                self.status_duration_count[self.status] = 1 
-            self.status_duration_record[self.status].append(1)
-        else:
-            if self.status not in self.status_duration_count: self.status_duration_count[self.status] = 1
-            elif new_status not in self.status_duration_count: self.status_duration_count[new_status] = 1
-            else: self.status_duration_count[self.status] += 1
         old_status = self.status
         self.status = new_status
         self.status_change = 0
         return (self.id, old_status, new_status)
-    
+        
+    # check the sign
     def sign(self, num):
         num = float(num)
         return (num > 0) - (num < 0)
@@ -72,14 +60,4 @@ class Unit:
         elif yout: out_dir = 1
         return xout or yout, out_dir
     
-    # get average duration of each status
-    def get_status_duration(self):
-        status_duration = {}
-        for status in self.status_duration_record:
-            cumulative_time = sum(self.status_duration_record[status])
-            cumulative_count = self.status_duration_count[status]
-            avg = cumulative_time / cumulative_count
-            status_duration[status] = avg
-        return status_duration
-
-
+    

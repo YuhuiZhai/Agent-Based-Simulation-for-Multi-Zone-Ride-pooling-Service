@@ -38,7 +38,7 @@ class Simulation:
         self.unserved_number = {i:0 for i in range(self.city_number)}
         # record of unserved information [info = [starting time, ozone, dzone, direction, ni0i0, sum_ni0j0]]
         self.unserved_record = []
-
+        
     
     def move(self):
         self.clock += self.dt
@@ -58,9 +58,22 @@ class Simulation:
                 self.events.dequeue()
                 p_id, p = self.events.head()
             self.fleet.rebalance()
-            # self.fleet.super_reallocation()
             self.move()
             self.update()
+        return 
+
+
+    def test_simple_taxi(self):
+        test_sample = 0
+        count = 0
+        for i in self.fleet.vehicles:
+            if count > 3:
+                break
+            test_sample = self.fleet.vehicles[i]
+            print(test_sample.status_distance_table)
+            result = test_sample.get_status_distance()
+            print(result)
+            count += 1
         return 
 
     def update_unserved(self, passenger):
@@ -84,7 +97,6 @@ class Simulation:
         self.unserved_record.append(record)
         return record
 
-
     def update_state_transition(self):
         for zone_id in self.fleet.zone_group:
             for status in self.fleet.zone_group[zone_id]:
@@ -93,7 +105,6 @@ class Simulation:
                 self.status_record[zone_id][status].append(len(self.fleet.zone_group[zone_id][status]))
         return
     
-    # add one to the status number in the flow_table
     def update_flow_table(self, type:int, status):
         if status == None:
             return 
@@ -106,28 +117,6 @@ class Simulation:
         else: 
             self.flow_table[type][status][-1] += 1
         return 
-    
-    # updated the expected travel time of each state in the appendix
-    # 0:c, 1:pick up the first pax, 2:pick up the second pax, 3:d from c, 4: d from p, 5:d
-    # deliver_time_table[status][deliver_type] = [avg trip time, , , ]
-    def update_deliver_time(self):
-        if self.clock <= self.T/3:
-            return 
-        def update_table(veh, deliver_type:int):
-            self.deliver_time_table[veh.status][deliver_type] += self.dt
-            return 
-        for status in self.fleet.vehs_group:
-            s0, s1, s2, s3 = status
-            # not including status without an assigned pax
-            if s1 != -1 or s2 == -1:
-                continue
-            vehs = self.fleet.vehs_group[status]
-            if status not in self.deliver_time_table:
-                self.deliver_time_table[status] = [0 for i in range(6)]
-            for veh in vehs:
-                deliver_idx = veh.deliver_index()
-                if deliver_idx != None: update_table(veh, deliver_idx)
-        return  
 
     def update_flow(self):
         # 0:a, 1:b, 2:c, 3:d, 4:g, 5:p
@@ -222,7 +211,6 @@ class Simulation:
         self.passenger_info.append([[px, py]])
         self.update_state_transition()
         self.update_pos()
-        self.update_deliver_time()
         self.update_flow()
         self.update_P()
         self.idx += 1
@@ -326,108 +314,13 @@ class Simulation:
         avg_assigned_dist = count / num
         return avg_assigned_dist
 
-    def export_travel_distance(self):
-        total_dist = 0
-        for veh_id in self.fleet.vehicles:
-            veh = self.fleet.vehicles[veh_id]
-            total_dist += veh.dist
-        print(total_dist)
-        return
-
     def export_P_over_lambda(self):
         Ps = self.Ps[int(len(self.Ps)/3):]
         avg_P = sum(Ps) / len(Ps)
         total_lambda = sum(np.array(self.lmd_m).flatten())
         print(avg_P / total_lambda)
         return avg_P / total_lambda
-    
-    # export the deliver count of each status with different deliver type
-    def export_deliver_count(self):
-        table = {}
-        for veh_id in self.fleet.vehicles: 
-            veh = self.fleet.vehicles[veh_id]
-            for status in veh.deliver_count_table:
-                if status not in table:
-                    table[status] = [0 for i in range(6)]
-                for deliver_type in range(6):
-                    count = veh.deliver_count_table[status][deliver_type]
-                    table[status][deliver_type] += count 
-        self.deliver_count_table = table
-        return table 
-
-    def export_deliver_dist(self):
-        self.export_deliver_count()
-        def avg(status, deliver_type):
-            if status not in self.deliver_time_table or status not in self.deliver_count_table:
-                return None
-            total_time = self.deliver_time_table[status][deliver_type]
-            total_count = self.deliver_count_table[status][deliver_type]
-            average = total_time / total_count if total_count != 0 else None            
-            return average
-        result = [[] for i in range(14)]
-        for i in range(self.city_number):
-            i0ii = (i, -1, i, i)
-            result[0].append(avg(i0ii, 0))
-            result[1].append(avg(i0ii, 1))
-            i0i0 = (i, -1, i, -1)
-            result[7].append(avg(i0i0, 0))
-            result[8].append(avg(i0i0, 1))
-            result[9].append(avg(i0i0, 3))
-            result[10].append(avg(i0i0, 4))
-            for j in range(self.city_number):
-                if j == i: 
-                    continue
-                i0ij = (i, -1, i, j)                 
-                result[2].append(avg(i0ij, 0))    
-                result[3].append(avg(i0ij, 2))    
-                result[4].append(avg(i0ij, 1))
-                i0j0 = (i, -1, j, -1)
-                result[11].append(avg(i0j0, 0))
-                result[12].append(avg(i0j0, 1))
-                result[13].append(avg(i0j0, 5))
-                for k in range(self.city_number):
-                    if k == i:
-                        continue
-                    i0jk = (i, -1, j, k) 
-                    result[5].append(avg(i0jk, 0)) 
-                    result[6].append(avg(i0jk, 2))
-        for i in range(14):
-            s, n = 0, 0 
-            for j in range(len(result[i])):
-                if result[i][j] == None: continue
-                s += result[i][j]
-                n += 1
-            result[i] = s/n*self.city.max_v if n != 0 else -1
-        dir_path = os.path.dirname(os.path.realpath(__file__))
-        path_exist = os.path.exists(f"{dir_path}\deliver_distance")
-        if not path_exist:
-            os.makedirs(f"{dir_path}\deliver_distance")
-        wb = xw.Workbook(f"{dir_path}\deliver_distance\deliver_distance_{self.fleet_m}.xlsx")
-        ws = wb.add_worksheet()
-        ws.write(0, 0, "Status")
-        ws.write(1, 0, "(i, 0, i, i)"); ws.write(3, 0, "(i, 0, i, j)"); ws.write(6, 0, "(i, 0, j, k)")
-        ws.write(8, 0, "(i, 0, i, 0)"); ws.write(12, 0, "(i, 0, i, j)")
-        
-        ws.write(0, 1, "Veh Inflow")
-        ws.write(1, 1, "ci0ii"); ws.write(2, 1, "piii0_i")
-        ws.write(3, 1, "ci0ij"); ws.write(4, 1, "piii0_j"); ws.write(5, 1, "piij0_i")
-        ws.write(6, 1, "ci0jk"); ws.write(7, 1, "piij0_k")
-        ws.write(8, 1, "ci0i0"); ws.write(9, 1, "pii00_i"); ws.write(10, 1, "ci0ii"); ws.write(11, 1, "piii0_i")
-        ws.write(12, 1, "ci0j0"); ws.write(13, 1, "pii00_j"); ws.write(14, 1, "di0ij")   
-        
-        ws.write(0, 2, "Expected Distance")
-        theta = self.city.l
-        ws.write(1, 2, 5*theta/8); ws.write(2, 2, theta/2)
-        ws.write(3, 2, 5*theta/6); ws.write(4, 2, 2*theta/3); ws.write(5, 2, 2*theta/3)
-        ws.write(6, 2, theta); ws.write(7, 2, theta/2)
-        ws.write(8, 2, 5*theta/6); ws.write(9, 2, 2*theta/3); ws.write(10, 2, 2*theta/3); ws.write(11, 2, theta/2)
-        ws.write(12, 2, theta); ws.write(13, 2, theta/2); ws.write(14, 2, theta/2)   
-        
-        ws.write(0, 3, "Simulation Result")
-        ws.write_column(1, 3, result)
-        wb.close()
-        return 
-
+ 
     def export_flow(self, full=False):
         temp = {0:"a", 1:"b", 2:"c", 3:"d", 4:"g", 5:"p"}
         workbook = xw.Workbook(f"{self.fleet_m}_flow.xlsx")
@@ -612,65 +505,42 @@ class Simulation:
                 ws2.write(i+1, j, self.unserved_number[zone_id])   
         workbook.close()
 
-    def export_status_duration(self):
+    def export_delivery_distance(self):
         dir_path = os.path.dirname(os.path.realpath(__file__))
-        path_exist = os.path.exists(f"{dir_path}\status_duration")
+        path_exist = os.path.exists(f"{dir_path}\delivery_distance")
         if not path_exist:
-            os.makedirs(f"{dir_path}\status_duration")
-        workbook = xw.Workbook(f"{dir_path}\status_duration\{self.fleet_m}_status_duration.xlsx")
-        ws = [0 for i in range(self.city_number)]
-        text = {0:"Idle", 2:"One Pax Assigned", 4:"Two Pax Assigned", 6:"One Pax Delivered", 8:"Two Pax Delivered", 10:"Others"}
-        for i in range(self.city_number):
-            ws[i] = workbook.add_worksheet(f"Zone_{i}")
-            for j in range(12):
-                if j in text: ws[i].write(0, j, text[j])
-                else: ws[i].write(0, j, "Time (hr)")
-        status_summary = {}
-        # combine the status duration of each vehicle together
+            os.makedirs(f"{dir_path}\delivery_distance")
+        wb = xw.Workbook(f"{dir_path}\delivery_distance\{self.fleet_m}_delivery_distance.xlsx")
+        avg_dist = []
         for veh_id in self.fleet.vehicles:
             veh = self.fleet.vehicles[veh_id]
-            status_duration = veh.get_status_duration()
-            for status in status_duration:
-                if status not in status_summary:
-                    status_summary[status] = []
-                status_summary[status].append(status_duration[status]*self.dt)
-        # get the average status duration
-        for status in status_summary:
-            status_summary[status] = sum(status_summary[status]) / len(status_summary[status]) if len(status_summary[status]) != 0 else -1
-        # record of correct col idx to put in 
-        row = [{2*i:1 for i in range(6)} for j in range(self.city_number)]
-        def helper(col_idx):
-            row_idx = row[s0][col_idx]
-            row[s0][col_idx] += 1
-            return row_idx
-        for status in status_summary:
-            s0, s1, s2, s3 = status
-            # idle
-            if s1 == -1 and s2 == -1 and s3 == -1:
-                col_idx = 0
-            # assigned
-            elif s1 == s0 and s3 == -1:
-                # One pax
-                if s2 == -1:
-                    col_idx = 2
-                # Two pax
-                else:
-                    col_idx = 4
-            # deliver
-            elif s2 != -1:
-                # One pax
-                if s3 == -1:
-                    col_idx = 6
-                else:
-                    col_idx = 8
-            # Others
-            else:
-                col_idx = 10
-            row_idx = helper(col_idx)
-            ws[s0].write(row_idx, col_idx, f"{status}"); ws[s0].write(row_idx, col_idx+1, status_summary[status])
-        workbook.close()
-        return         
+            dist = veh.get_delivery_distance()
+            # initialize the summary table
+            if avg_dist == []:
+                for j in range(self.city_number):
+                    avg_dist.append({})
+                    for i in dist[j]: 
+                        avg_dist[j][i] = [0, 0]
+            for j in range(self.city_number):
+                for i in dist[j]: 
+                    if dist[j][i] != None:
+                        avg_dist[j][i][0] += dist[j][i]
+                        avg_dist[j][i][1] += 1
+        for j in range(self.city_number):
+            for i in avg_dist[j]: 
+                avg_dist[j][i] = avg_dist[j][i][0]/avg_dist[j][i][1] if avg_dist[j][i][1] != 0 else -1
         
+        for j in range(self.city_number):
+            ws = wb.add_worksheet(f"Zone_{j+1}")
+            idx1_text = {0:f"{j+1}0{j+1}0", 1:f"{j+1}0{j+1}{j+1}", 2:f"{j+1}0j0", 3:f"{j+1}0{j+1}j", 4:f"{j+1}0jk"} 
+            idx2_text = {n:f"Case{n+1}" for n in range(5)}
+            for i in avg_dist[j]:
+                col, row = i
+                ws.write(0, col*2, idx1_text[col])
+                ws.write(row+1, col*2, idx2_text[row])
+                ws.write(row+1, col*2+1, avg_dist[j][i])
+        wb.close()
 
-                    
+            
+             
             
