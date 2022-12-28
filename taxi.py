@@ -60,7 +60,7 @@ class Taxi(Unit):
         self.assigned_dist_record.append(abs(self.x-passenger.x) + abs(self.y - passenger.y))
         passenger.status, passenger.t_a = 1, self.clock
         self.turning_xy = None
-        self.curr_dir = None
+        self.prev_dir, self.curr_dir = None, None
         s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status
         # if p2 exists then its travel is interrupted with a vertical detour 
         if p2 != None: 
@@ -101,6 +101,7 @@ class Taxi(Unit):
             return 
         s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status   
         p2.status, p2.t_end = 3, self.clock
+        self.prev_dir, self.curr_dir = None, None
         new_taxi_status = (s0, (s1, p1), (s3, p3), (-1, None))
         new_group_status = (s0, s1, s3, -1)
         self.update_taxi_status(new_taxi_status)
@@ -151,7 +152,7 @@ class Taxi(Unit):
         return 
 
     # given current zone and target zone, return valid direction in list
-    def valid_dir(self, target_zone:Zone):
+    def valid_dir(self, target_zone:Zone, test_deliver=False):
         curr_i, curr_j = self.zone.ij
         target_i, target_j = target_zone.ij
         if curr_i == target_i and curr_j == target_j:
@@ -170,7 +171,7 @@ class Taxi(Unit):
 
     # move from current location toward adjacent zone in the direction of: 
     # N:0, E:1, W:2, S:3 
-    def move_adjacent(self, dt, dir:int):
+    def move_adjacent(self, dt, dir:int, test_deliver=False):
         dir_map = {0:(0, 1), 1:(1, 0), 2:(-1, 0), 3:(0, -1)}
 
         # Case that taxi follows the same previous route or this is the first travel zone
@@ -193,11 +194,17 @@ class Taxi(Unit):
                 elif dir == 1 or dir == 2: 
                     xlim = [self.x, self.zone.center[0] + dir_map[dir][0]*self.zone.length/2]
                 zone_xlim, zone_ylim = self.zone.xyrange()
-                if xlim == None and zone_xlim[0] < p2.dx and p2.dx < zone_xlim[1]:
-                    xlim = xlim0
-                if ylim == None and zone_ylim[0] < p2.dy and p2.dy < zone_ylim[1]:
-                    ylim = ylim0
-                self.turning_xy = self.zone.generate_location(xlim=xlim, ylim=ylim)
+                if not test_deliver:
+                    if xlim == None and zone_xlim[0] < p2.dx and p2.dx < zone_xlim[1]:
+                        xlim = xlim0
+                    if ylim == None and zone_ylim[0] < p2.dy and p2.dy < zone_ylim[1]:
+                        ylim = ylim0
+                    self.turning_xy = self.zone.generate_location(xlim=xlim, ylim=ylim)
+                else:
+                    if xlim == None and zone_xlim[0] < p2.dx and p2.dx < zone_xlim[1]:
+                        self.turning_xy = (p2.dx, self.y)
+                    if ylim == None and zone_ylim[0] < p2.dy and p2.dy < zone_ylim[1]:
+                        self.turning_xy = (self.x, p2.dy)
             if dir == 0 or dir == 3: xfirst = True
             else: xfirst = False 
             reached = self.move_Manhattan(dt, self.turning_xy, xfirst)
@@ -216,14 +223,14 @@ class Taxi(Unit):
         return False
     
     # move from current toward target zone
-    def move_toward(self, dt, target_zone:Zone):
+    def move_toward(self, dt, target_zone:Zone, test_deliver=False):
         status_request = None
         # return true if it is already in the target zone
         if self.zone.id == target_zone.id:
             return True, status_request
        # when the taxi entering the zone for the first time, initialize the current travel direction
         if self.curr_dir == None:
-            dir_list = self.valid_dir(target_zone)
+            dir_list = self.valid_dir(target_zone, test_deliver)
             # only one valid direction
             if len(dir_list) == 1:
                 chosen_dir = dir_list[0]
@@ -239,7 +246,7 @@ class Taxi(Unit):
                 else:
                     chosen_dir = dir2
             self.curr_dir = chosen_dir
-        reached = self.move_adjacent(dt, self.curr_dir)
+        reached = self.move_adjacent(dt, self.curr_dir, test_deliver)
         if reached:
             new_zone = self.city.neighborZone(self.zone, self.curr_dir)
             self.changeZone(new_zone)
@@ -360,8 +367,6 @@ class Taxi(Unit):
                     avg_trip_table[s0][i] = avg_trip_table[s0][i][0]/avg_trip_table[s0][i][1]
         return avg_trip_table
 
-
-
     def update_status_record(self):
         s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status
         if (s0, s1, s2, s3) != self.status_record[-1]:
@@ -381,7 +386,7 @@ class Taxi(Unit):
     # get trip distance of different cases
 
     # movement function between zones
-    def move(self, dt):
+    def move(self, dt, test_deliver=False):
         self.clock += dt
         s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status
         status_request = None
@@ -404,7 +409,7 @@ class Taxi(Unit):
 
         # delivering status and interzonal travel
         elif s1 == -1 and s2 != -1 and s0 != s2:
-            reached, status_request = self.move_toward(dt, p2.target_zone)
+            reached, status_request = self.move_toward(dt, p2.target_zone, test_deliver)
 
         # delivering status and intrazonal travel
         elif s1 == -1 and s2 != -1 and s0 == s2:

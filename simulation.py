@@ -8,7 +8,7 @@ import xlsxwriter as xw
 import openpyxl as op
 import os
 class Simulation:
-    def __init__(self, city:City, dt:float, T:float, lmd_matrix=None, fleet_matrix=None, rebalance_matrix=None):
+    def __init__(self, city:City, dt:float, T:float, lmd_matrix=None, fleet_matrix=None, rebalance_matrix=None, test_deliver=False):
         self.clock, self.city, self.dt, self.T = 0, city, dt, T
         self.city.assignT(T)
         self.lmd_m, self.fleet_m, self.rebalance_m = lmd_matrix, fleet_matrix, rebalance_matrix
@@ -38,11 +38,14 @@ class Simulation:
         self.unserved_number = {i:0 for i in range(self.city_number)}
         # record of unserved information [info = [starting time, ozone, dzone, direction, ni0i0, sum_ni0j0]]
         self.unserved_record = []
+
+        # indicator of testing deliver distance
+        self.test_deliver = test_deliver
         
     
     def move(self):
         self.clock += self.dt
-        self.fleet.zone_move(self.dt)
+        self.fleet.zone_move(self.dt, self.test_deliver)
         self.events.move(self.dt)
 
     def simple_serve(self):

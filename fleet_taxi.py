@@ -38,9 +38,9 @@ class Taxifleet(Fleet):
         self.des_dist = {i:[] for i in range(4)}
         
     # zone_move() replaces default move() 
-    def zone_move(self, dt):
+    def zone_move(self, dt, test_deliver=False):
         for id in self.vehicles:
-            status_request = self.vehicles[id].move(dt)
+            status_request = self.vehicles[id].move(dt, test_deliver)
             self.changeVehStatus(status_request)
             self.changeZoneStatus(status_request)
         # self.impulse_i000()
