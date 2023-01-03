@@ -31,7 +31,7 @@ prob_matrix[3][0][2] = 0.5
 prob_matrix[3][1][0] = 1.0
 prob_matrix[3][2][2] = 1.0
 import openpyxl as op
-wb = op.load_workbook("test.xlsx")
+wb = op.load_workbook("Option123.xlsx")
 ws = wb.active
 for i in range(2, 17):
     print(f"-------{i-1}-------")
@@ -47,13 +47,13 @@ for i in range(2, 17):
     print(rebalance_m)
     print(lmd_m)
     city = City(length=10, n=2, max_v=25)
-    s = Simulation(city=city, dt=1/3600, T=10, lmd_matrix=lmd_m, fleet_matrix=fleet_m, rebalance_matrix=rebalance_m)
+    s = Simulation(city=city, dt=1/3600, T=10, lmd_matrix=lmd_m, fleet_matrix=fleet_m, rebalance_matrix=rebalance_m, test_deliver=False)
+    # s.name("normal_test")
+    s.name("Option_1_2_3")
     s.simple_serve()
-    s.export_state_number()
-    s.export_passenger_time()
-    s.export_P_over_lambda()
-    s.export_uneserved_record()
     s.export_delivery_distance()
-
+    s.export_passenger_time()
+    s.export_state_number()
+    s.export_unserved_record()
 
 

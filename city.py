@@ -227,11 +227,14 @@ class City:
         self.feasible_zone3[(c_zone_id, (xdir, ydir))] = feasible_zone
         return feasible_zone
 
-    # Case 4 feasible region, return range of x, y
+    # Case 4 feasible region, input is passenger's origin (x, y), origin zone id, destination zone id 
     def feasibleZone_4(self, c_oxy:tuple, c_ozone_id:int, c_dzone_id:int):
+        # get the zone object
         c_ozone, c_dzone = self.zones[c_ozone_id], self.zones[c_dzone_id]
+        # get the relative direction of destination to origin
         xdir, ydir = self.dir(c_ozone.center, c_dzone.center)
         diag = False
+        # diagonal case
         if xdir != 0 and ydir != 0:
             diag = True
             xlim, ylim = [c_oxy[0], c_ozone.center[0]+xdir*self.l/2], [c_oxy[1], c_ozone.center[1]+ydir*self.l/2]

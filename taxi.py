@@ -9,25 +9,20 @@ class Taxi(Unit):
         # default init_status is (city.id, (-1, None), (-1, None), (-1, None))
         # different from status in fleet, passenger is combined to s2 and s3 for convenience
         super().__init__(vehicle_id, zone, init_status)
-        self.prev_status = None
         self.taxi_status = (zone.id, (-1, None), (-1, None), (-1, None))
-        self.prev_diff_status = None
-        self.pprev_diff_status = None
         self.load = 0
         self.city = city
         self.rng = np.random.default_rng(seed=np.random.randint(100))
+        self.status_record = []
         # prev_dir stores the previous direction of movement, dir_dict stores available direction and prob
         # curr_dir stores the current direction of movement
         self.prev_dir, self.curr_dir = None, None
         self.turning_xy = None
-        self.status_record = [(self.zone.id, -1, -1, -1)]
-        self.assigned_dist_record = []
-        self.dist = 0
-        self.deliver_count_table = {}
         # the table of status and trip distance, when status changes, record the od of previous trip
-        # first item means status, second item means the start point and end point of current status
-        self.delivery_distance_table = [[self.taxi_status, [self.location(), None]]]
-    
+        # first item means status, second item means expected OD, third item means the start point and end point of current status
+        self.delivery_distance_table = [[self.taxi_status, [None, None], [self.location(), None]]]
+        self.pax_record = set()
+        
     # return current position
     def location(self):
         return (self.x, self.y)
@@ -57,15 +52,10 @@ class Taxi(Unit):
         if self.taxi_status[1] != (-1, None) or self.taxi_status[3] != (-1, None):
             print("Error in assignment")
             return 
-        self.assigned_dist_record.append(abs(self.x-passenger.x) + abs(self.y - passenger.y))
         passenger.status, passenger.t_a = 1, self.clock
         self.turning_xy = None
         self.prev_dir, self.curr_dir = None, None
         s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status
-        # if p2 exists then its travel is interrupted with a vertical detour 
-        if p2 != None: 
-            passenger.vd_status = 1
-            p2.vd_status = 1
         new_taxi_status = (s0, (s0, passenger), (s2, p2), (s3, p3))  
         new_group_status = (s0, s0, s2, s3) 
         self.update_taxi_status(new_taxi_status)
@@ -82,6 +72,7 @@ class Taxi(Unit):
         p1.status, p1.t_s = 2, self.clock
         pos = (self.x, self.y)
         self.turning_xy = None
+        self.prev_dir, self.curr_dir = None, None
         pfirst, psecond = self.dist_helper(pos, p1, p2)
         if psecond != None:
             new_taxi_status = (p1.zone.id, (-1, None), (pfirst.target_zone.id, pfirst), (psecond.target_zone.id, psecond))
@@ -101,6 +92,7 @@ class Taxi(Unit):
             return 
         s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status   
         p2.status, p2.t_end = 3, self.clock
+        self.turning_xy = None
         self.prev_dir, self.curr_dir = None, None
         new_taxi_status = (s0, (s1, p1), (s3, p3), (-1, None))
         new_group_status = (s0, s1, s3, -1)
@@ -140,19 +132,19 @@ class Taxi(Unit):
         new_group_status = (self.zone.id, s1, s2, s3)
         self.update_taxi_status(new_taxi_status)
         status_request = self.changeStatusTo(new_group_status)
+        self.prev_dir = self.curr_dir
+        self.curr_dir = None
         return status_request
 
     # enter a new zone
     def changeZone(self, new_zone:Zone):
         self.zone = new_zone
         self.speed = new_zone.max_v
-        self.prev_dir = self.curr_dir
-        self.curr_dir = None
         self.turning_xy = None
         return 
 
     # given current zone and target zone, return valid direction in list
-    def valid_dir(self, target_zone:Zone, test_deliver=False):
+    def valid_dir(self, target_zone:Zone):
         curr_i, curr_j = self.zone.ij
         target_i, target_j = target_zone.ij
         if curr_i == target_i and curr_j == target_j:
@@ -168,6 +160,24 @@ class Taxi(Unit):
         # taxi should move Eest
         elif curr_j < target_j: dir_list.append(1)
         return dir_list
+
+    def choose_dir(self, target_zone:Zone):
+        dir_list = self.valid_dir(target_zone)
+        # only one valid direction
+        if len(dir_list) == 1:
+            chosen_dir = dir_list[0]
+        # two valid directions
+        else:
+            dir1, dir2 = dir_list
+            prob = self.city.prob_matrix[self.zone.id][target_zone.id]
+            p1, p2 = prob[dir1], prob[dir2]
+            p1, p2 = p1/(p1+p2), p2/(p1+p2)
+            indicator = self.rng.random()
+            if indicator <= p1:
+                chosen_dir = dir1
+            else:
+                chosen_dir = dir2
+        return chosen_dir
 
     # move from current location toward adjacent zone in the direction of: 
     # N:0, E:1, W:2, S:3 
@@ -230,21 +240,7 @@ class Taxi(Unit):
             return True, status_request
        # when the taxi entering the zone for the first time, initialize the current travel direction
         if self.curr_dir == None:
-            dir_list = self.valid_dir(target_zone, test_deliver)
-            # only one valid direction
-            if len(dir_list) == 1:
-                chosen_dir = dir_list[0]
-            # two valid directions
-            else:
-                dir1, dir2 = dir_list
-                prob = self.city.prob_matrix[self.zone.id][target_zone.id]
-                p1, p2 = prob[dir1], prob[dir2]
-                p1, p2 = p1/(p1+p2), p2/(p1+p2)
-                indicator = self.rng.random()
-                if indicator <= p1:
-                    chosen_dir = dir1
-                else:
-                    chosen_dir = dir2
+            chosen_dir = self.choose_dir(target_zone)
             self.curr_dir = chosen_dir
         reached = self.move_adjacent(dt, self.curr_dir, test_deliver)
         if reached:
@@ -259,8 +255,8 @@ class Taxi(Unit):
             if loc1[0] == loc2[0] or loc1[1] == loc2[1]:
                 return False
             return True
-        curr_status, [loc1, loc2] = curr_trip
-        prev_status, _ = prev_trip
+        curr_status, [loc1, loc2], _ = curr_trip
+        prev_status = prev_trip[0]
         (s0, (s1, p1), (s2, p2), (s3, p3)) = curr_status
         (p_s0, (p_s1, p_p1), (p_s2, p_p2), (p_s3, p_p3)) = prev_status
         idx1, idx2 = None, None
@@ -341,46 +337,59 @@ class Taxi(Unit):
         idx_pair.append((4, 0))
         # key is (idx1, idx2), value is [sum, count]
         avg_trip_table = [{i:[0, 0] for i in idx_pair} for j in range(self.city.n**2)] 
-        for i in range(int(n/3), n-1):
+        trip_num_table = [{i:0 for i in idx_pair} for j in range(self.city.n**2)] 
+        for i in range(n-1):
             prev_trip = self.delivery_distance_table[i-1]
             curr_trip = self.delivery_distance_table[i]
-            next_trip = self.delivery_distance_table[i+1]
-            taxi_status, [loc1, loc2] = curr_trip
-            next_taxi_status, _ = next_trip
-            curr_status, next_status = convert(taxi_status), convert(next_taxi_status)
-            (s0, s1, s2, s3), (n_s0, n_s1, n_s2, n_s3) = curr_status, next_status
+            taxi_status, [loc1, loc2], _ = curr_trip
+            curr_status = convert(taxi_status)
+            (s0, s1, s2, s3) = curr_status
             idx1, idx2 = self.get_deliver_index(prev_trip, curr_trip)
             if idx1 == None or idx2 == None:
                 continue
-            # Check the next status of first three cases to ensure passenger is actually delivered
-            if (idx1 == 0 and not (next_status == (n_s0, -1, -1, -1))) or \
-               (idx1 == 1 and not (next_status == (n_s0, -1, n_s0, -1))) or \
-               (idx1 == 2 and not (next_status == (n_s0, -1, n_s2, -1))):
-                continue
+            if loc1 == None: print(idx1, idx2)
             avg_trip_table[s0][(idx1, idx2)][0] += get_dist(loc1, loc2) 
             avg_trip_table[s0][(idx1, idx2)][1] += 1 
         for s0 in range(len(avg_trip_table)):
             for i in avg_trip_table[s0]:
                 if avg_trip_table[s0][i][1] == 0: 
+                    trip_num_table[s0][i] = 0
                     avg_trip_table[s0][i] = None
                 else:
+                    trip_num_table[s0][i] = avg_trip_table[s0][i][1]
                     avg_trip_table[s0][i] = avg_trip_table[s0][i][0]/avg_trip_table[s0][i][1]
-        return avg_trip_table
-
-    def update_status_record(self):
-        s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status
-        if (s0, s1, s2, s3) != self.status_record[-1]:
-            self.status_record.append((s0, s1, s2, s3))
-        return 
+        return avg_trip_table, trip_num_table
 
     # update new taxi status
     def update_taxi_status(self, new_taxi_status):
         if self.taxi_status == new_taxi_status:
             return 
-        s0, (s1, p1), (s2, p2), (s3, p3) = new_taxi_status
-        self.delivery_distance_table[-1][1][1] = self.location()
-        self.delivery_distance_table.append([new_taxi_status, [self.location(), None]])
         self.taxi_status = new_taxi_status
+        s0, (s1, p1), (s2, p2), (s3, p3) = new_taxi_status
+        self.status_record.append((s0, s1, s2, s3))
+        self.delivery_distance_table[-1][2][1] = self.location()
+        if self.clock > self.city.T/3:
+            # p2 is the current pax to be delivered
+            if p2 != None:
+                expected_od = [None, None]
+                dx, dy = p2.location()[1]
+                xlim, ylim = self.zone.xyrange()
+                # when the passenger is in the range of target zone 
+                if xlim[0] < dx and dx < xlim[1] and ylim[0] < dy and dy < ylim[1]:
+                    # real case OD pair
+                    expected_od = [self.location(), p2.location()[1]]
+                else: 
+                    # special case, when the deliver point is outside of zone, find out the boundary point
+                    if self.curr_dir == None:
+                        chosen_dir = self.choose_dir(p2.target_zone)
+                    else:
+                        chosen_dir = self.curr_dir
+                    boundary = {0:(self.x, ylim[1]), 1:(xlim[1], self.y), 2:(xlim[0], self.y), 3:(self.x, ylim[0])}
+                    expected_od = [self.location(), boundary[chosen_dir]]
+                curr_trip = [new_taxi_status, expected_od, [self.location(), None]]
+                self.delivery_distance_table.append(curr_trip)
+            else: 
+                self.delivery_distance_table.append([new_taxi_status, [None, None], [self.location(), None]])
         return
 
     # get trip distance of different cases
@@ -390,7 +399,6 @@ class Taxi(Unit):
         self.clock += dt
         s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status
         status_request = None
-        self.dist += dt*self.speed     
 
         # rebalance status and interzonal travel
         if s0 != s1 and s1 != -1 and p1 == None and s2 == -1 and s3 == -1:
@@ -423,9 +431,6 @@ class Taxi(Unit):
         # no change in status
         if status_request == None:
             self.update_taxi_status(self.taxi_status)
-
-        # if status change from assigned to delivered, update the status record and count plus one
-        self.update_status_record()
         return status_request
         
    
