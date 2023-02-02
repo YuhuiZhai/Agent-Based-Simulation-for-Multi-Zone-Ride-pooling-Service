@@ -5,7 +5,7 @@ from unit import Unit
 import numpy as np
 
 class Taxi(Unit):
-    def __init__(self, vehicle_id:tuple, zone:Zone, city:City, init_status):
+    def __init__(self, vehicle_id:tuple, zone:Zone, city:City, init_status, turning_random=True):
         # default init_status is (city.id, (-1, None), (-1, None), (-1, None))
         # different from status in fleet, passenger is combined to s2 and s3 for convenience
         super().__init__(vehicle_id, zone, init_status)
@@ -13,6 +13,7 @@ class Taxi(Unit):
         self.load = 0
         self.city = city
         self.rng = np.random.default_rng(seed=np.random.randint(100))
+        self.turning_random = turning_random
         self.status_record = []
         # prev_dir stores the previous direction of movement, dir_dict stores available direction and prob
         # curr_dir stores the current direction of movement
@@ -22,7 +23,18 @@ class Taxi(Unit):
         # first item means status, second item means expected OD, third item means the start point and end point of current status
         self.delivery_distance_table = [[self.taxi_status, [None, None], [self.location(), None]]]
         self.pax_record = set()
+        self.prev_loc = None
         
+    def pointcheck(self):
+        if self.prev_loc == None: 
+            return 
+        x, y = self.location()
+        px, py = self.prev_loc
+        if abs(x-px) + abs(y-py) > self.city.max_v*self.dt:
+            print("Ohh")
+        self.prev_loc = self.location()
+        return  
+    
     # return current position
     def location(self):
         return (self.x, self.y)
@@ -52,8 +64,10 @@ class Taxi(Unit):
         if self.taxi_status[1] != (-1, None) or self.taxi_status[3] != (-1, None):
             print("Error in assignment")
             return 
+        self.status_transition_count += 1
         passenger.status, passenger.t_a = 1, self.clock
         self.turning_xy = None
+        # self.prev_dir, self.curr_dir = None, None
         self.prev_dir, self.curr_dir = None, None
         s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status
         new_taxi_status = (s0, (s0, passenger), (s2, p2), (s3, p3))  
@@ -68,11 +82,12 @@ class Taxi(Unit):
         if self.taxi_status[1][0] != self.taxi_status[0]:
             print("Error in pickup")
             return
+        self.status_transition_count += 1
         s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status
         p1.status, p1.t_s = 2, self.clock
         pos = (self.x, self.y)
         self.turning_xy = None
-        self.prev_dir, self.curr_dir = None, None
+        self.curr_dir = None
         pfirst, psecond = self.dist_helper(pos, p1, p2)
         if psecond != None:
             new_taxi_status = (p1.zone.id, (-1, None), (pfirst.target_zone.id, pfirst), (psecond.target_zone.id, psecond))
@@ -90,6 +105,7 @@ class Taxi(Unit):
         if self.taxi_status[1] != (-1, None) or self.taxi_status[2] == (-1, None):
             print("Error in deliver")
             return 
+        self.status_transition_count += 1
         s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status   
         p2.status, p2.t_end = 3, self.clock
         self.turning_xy = None
@@ -106,6 +122,7 @@ class Taxi(Unit):
         if self.status != (self.zone.id, -1, -1, -1):
             print("Error in rebalance status")
             return 
+        self.status_transition_count += 1
         s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status
         self.idle_position = zone.generate_location()
         new_taxi_status = (s0, (zone.id, None), (-1, None), (-1, None))
@@ -116,6 +133,7 @@ class Taxi(Unit):
     
     # make the taxi idle status
     def idle(self):
+        self.status_transition_count += 1
         self.idle_position = None
         self.turning_xy = None
         new_taxi_status = (self.zone.id, (-1, None), (-1, None), (-1, None))
@@ -127,6 +145,7 @@ class Taxi(Unit):
     # when taxi goes out of the boundary of zone, self.city will firstly be changed by self.changeCity()
     # status will then be updated
     def cross(self):
+        self.status_transition_count += 1
         s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status
         new_taxi_status = (self.zone.id, (s1, p1), (s2, p2), (s3, p3))
         new_group_status = (self.zone.id, s1, s2, s3)
@@ -188,35 +207,38 @@ class Taxi(Unit):
         if dir == self.prev_dir or self.prev_dir == None: 
             self.x += dir_map[dir][0]*self.speed*dt
             self.y += dir_map[dir][1]*self.speed*dt
-        
         # Case that taxi change the direction. Taxi will choose random point. 
         else: 
             (s0, (s1, p1), (s2, p2), (s3, p3)) = self.taxi_status
-            if self.turning_xy == None:
-                xlim0, ylim0 = None, None
-                if p2 != None:
-                    xlim0, ylim0 = [self.x, p2.dx], [self.y, p2.dy]
-                    xlim0.sort(); ylim0.sort()
+            if self.turning_xy == None:         
                 xlim, ylim = None, None
                 # if direction is North or South, choose the upper/lower region divided by y value 
                 if dir == 0 or dir == 3: 
                     ylim = [self.y, self.zone.center[1] + dir_map[dir][1]*self.zone.length/2]
                 elif dir == 1 or dir == 2: 
                     xlim = [self.x, self.zone.center[0] + dir_map[dir][0]*self.zone.length/2]
-                zone_xlim, zone_ylim = self.zone.xyrange()
-                if not test_deliver:
-                    if xlim == None and zone_xlim[0] < p2.dx and p2.dx < zone_xlim[1]:
-                        xlim = xlim0
-                    if ylim == None and zone_ylim[0] < p2.dy and p2.dy < zone_ylim[1]:
-                        ylim = ylim0
+                if self.turning_random: 
                     self.turning_xy = self.zone.generate_location(xlim=xlim, ylim=ylim)
                 else:
-                    if xlim == None and zone_xlim[0] < p2.dx and p2.dx < zone_xlim[1]:
-                        self.turning_xy = (p2.dx, self.y)
-                    if ylim == None and zone_ylim[0] < p2.dy and p2.dy < zone_ylim[1]:
-                        self.turning_xy = (self.x, p2.dy)
+                    zone_xlim, zone_ylim = self.zone.xyrange()
+                    xlim0, ylim0 = None, None
+                    if p2 != None:
+                        xlim0, ylim0 = [self.x, p2.dx], [self.y, p2.dy]
+                        xlim0.sort(); ylim0.sort()
+                    if not test_deliver:
+                        if xlim == None and zone_xlim[0] < p2.dx and p2.dx < zone_xlim[1]:
+                            xlim = xlim0
+                        if ylim == None and zone_ylim[0] < p2.dy and p2.dy < zone_ylim[1]:
+                            ylim = ylim0
+                        self.turning_xy = self.zone.generate_location(xlim=xlim, ylim=ylim)
+                    else:
+                        if xlim == None and zone_xlim[0] < p2.dx and p2.dx < zone_xlim[1]:
+                            self.turning_xy = (p2.dx, self.y)
+                        if ylim == None and zone_ylim[0] < p2.dy and p2.dy < zone_ylim[1]:
+                            self.turning_xy = (self.x, p2.dy)
             if dir == 0 or dir == 3: xfirst = True
             else: xfirst = False 
+            if self.turning_xy == None: print(self.status_record)
             reached = self.move_Manhattan(dt, self.turning_xy, xfirst)
             if reached:
                 self.prev_dir = dir
@@ -396,6 +418,7 @@ class Taxi(Unit):
 
     # movement function between zones
     def move(self, dt, test_deliver=False):
+        self.dt = dt
         self.clock += dt
         s0, (s1, p1), (s2, p2), (s3, p3) = self.taxi_status
         status_request = None
@@ -408,7 +431,7 @@ class Taxi(Unit):
             if reached:
                 self.zone = self.city.getZone(s1)
                 status_request = self.idle()
-
+                
         # assigned status
         elif s0 == s1 and p1 != None and s3 == -1:
             reached = self.move_Manhattan(dt, (p1.x, p1.y))
@@ -431,6 +454,7 @@ class Taxi(Unit):
         # no change in status
         if status_request == None:
             self.update_taxi_status(self.taxi_status)
+        self.pointcheck()
         return status_request
         
    

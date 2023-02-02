@@ -8,11 +8,12 @@ import xlsxwriter as xw
 import openpyxl as op
 import os
 class Simulation:
-    def __init__(self, city:City, dt:float, T:float, lmd_matrix=None, fleet_matrix=None, rebalance_matrix=None, test_deliver=False):
-        self.clock, self.city, self.dt, self.T = 0, city, dt, T
+    def __init__(self, city:City, dt:float, T:float, lmd_matrix=None, fleet_matrix=None, rebalance_matrix=None, 
+                test_deliver=False, turning_random=True, rebalance_t_tp=None):
+        self.clock, self.city, self.dt, self.T, self.turninng_random = 0, city, dt, T, turning_random
         self.city.assignT(T)
         self.lmd_m, self.fleet_m, self.rebalance_m = lmd_matrix, fleet_matrix, rebalance_matrix
-        self.fleet = Taxifleet(self.fleet_m, 0, self.city, self.dt, self.T, self.rebalance_m)
+        self.fleet = Taxifleet(self.fleet_m, 0, self.city, self.dt, self.T, self.rebalance_m, turning_random)
         self.events = EventQueue(T, self.lmd_m, 0, self.city)
         self.fleet_info = [] # list of [ax, ay], [sx, sy], [ix, iy]
         self.passenger_info = [] # list of [px, py]
@@ -24,7 +25,7 @@ class Simulation:
         self.status_number = {i:{} for i in range(self.zone_number)}
         # index of iteration
         self.idx = 0
-
+        self.Ps = []
         # record of flow transition, representing [a, b, c, d, g, p]
         self.flow_table = [{}, {}, {}, {}, {}, {}]
         
@@ -35,7 +36,12 @@ class Simulation:
 
         # indicator of testing deliver distance
         self.test_deliver = test_deliver
-    
+        self.bound_m = None
+        # dynamic rebalance matrix cumulation
+        self.rebalance_m_tp = []
+        self.b = []
+        self.rebalance_t_tp = rebalance_t_tp
+        
     def name(self, folder_name):
         self.folder_name = folder_name
         return 
@@ -44,9 +50,12 @@ class Simulation:
         self.clock += self.dt
         self.fleet.fleet_move(self.dt, self.test_deliver)
         self.events.move(self.dt)
-
+    
     def simple_serve(self):
         self.timeline = np.arange(0, self.T, self.dt)
+        idx = 0
+        if self.rebalance_t_tp != None:
+            self.tp_N = int(len(self.timeline)/int((self.T/self.rebalance_t_tp)))
         for t in tqdm(self.timeline, desc="simple_serve loading"):
             p_id, p = self.events.head()
             while (not self.events.empty() and p.t_start < t):
@@ -57,9 +66,20 @@ class Simulation:
                 self.update_flow_table(0, prev_status)
                 self.events.dequeue()
                 p_id, p = self.events.head()
-            self.fleet.rebalance()
+            if self.rebalance_t_tp == None:
+                self.fleet.rebalance()
+                self.fleet.extra_rebalance(self.bound_m)
+            elif idx % self.tp_N == 0:
+                fleet_m, b = self.fleet.rebalance_tp()
+                self.rebalance_m_tp.append(fleet_m)
+                self.b.append(b)
             self.move()
             self.update()
+            idx += 1
+        return 
+
+    def add_bound(self, bound_m):
+        self.bound_m = bound_m
         return 
 
     def test_simple_taxi(self):
@@ -75,22 +95,15 @@ class Simulation:
 
     def update_unserved(self, passenger):
         self.unserved_number[passenger.zone.id] += 1 
-        # record is a list [starting time, ozone, dzone, direction, ni0i0, sum_ni0j0]
-        record = ["" for i in range(6)]
+        # record is a list [starting time, ozone, dzone, direction, ni0j0 - ni0i0 - ni0j0]
+        record = [0 for i in range(4+self.zone_number)]
         record[0] = passenger.t_start
         O, D, = passenger.odzone()
-        record[1], record[2] = O, D
+        record[1], record[2] = O+1, D+1
         if O == D: record[3] = self.city.direction_helper(*passenger.location())
-        if O not in self.status_number: 
-            record[4], record[5] = 0, 0
-        else:
-            ni0i0 = self.status_number[O][(-1, O, -1)][-1] if (-1, O, -1) in self.status_number[O] else 0
-            sum_ni0j0 = 0
-            for i in range(self.zone_number):
-                if i == O:continue
-                ni0j0 = self.status_number[O][(-1, i, -1)][-1] if (-1, i, -1) in self.status_number[O] else 0
-                sum_ni0j0 += ni0j0
-            record[4], record[5] = ni0i0, sum_ni0j0
+        for j in range(self.zone_number):
+            ni0j0 = self.status_number[O][(-1, j, -1)][-1] if (-1, j, -1) in self.status_number[O] else 0
+            record[j+4] = ni0j0
         self.unserved_record.append(record)
         return record
 
@@ -174,6 +187,10 @@ class Simulation:
                 self.update_flow_table(4, prev_status)
                 self.update_flow_table(2, curr_status)
         return 
+    
+    def update_P(self):
+        P = self.fleet.computeP()
+        self.Ps.append(P)
 
     def update(self):
         ax, ay = [], []
@@ -191,6 +208,7 @@ class Simulation:
         self.passenger_info.append([[px, py]])
         self.update_state_transition()
         self.update_flow()
+        self.update_P()
         self.idx += 1
         return 
 
@@ -235,7 +253,14 @@ class Simulation:
                             worksheet.write(k+1, j+1, flows[status][k])
         workbook.close()
         return
-
+    
+    def export_P_over_lambda(self):
+        Ps = self.Ps[int(len(self.Ps)*2/3):]
+        avg_P = sum(Ps) / len(Ps)
+        total_lambda = sum(np.array(self.lmd_m).flatten())
+        print(avg_P / total_lambda)
+        return avg_P / total_lambda
+    
     # export state transition information 
     def export_state_number(self, full=False, shift=1):
         dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -294,7 +319,7 @@ class Simulation:
             os.makedirs(f"{path}")
         for info in self.events.queue:
             p = info[1]
-            if p.t_start <= self.T*1/3:
+            if p.t_start < self.T*1/3:
                 continue
             if p.status == 3:
                 self.traveling_ts[p.zone.id][p.target_zone.id][p.rs_status].append(p.t_end - p.t_start)
@@ -320,8 +345,11 @@ class Simulation:
         worksheet0.write(4, 0, avg2)
         worksheet0.write(6, 0, "average seeker door to door traveling time (hr)")
         worksheet0.write(7, 0, avg3)
+        P = self.export_P_over_lambda()
+        worksheet0.write(8, 0, "P/lambda")
+        worksheet0.write(9, 0, P)
         workbook.close()
-        return 
+        return avg1
 
     def export_unserved_record(self):
         dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -334,12 +362,16 @@ class Simulation:
         for i in range(self.zone_number):
             ws[i] = workbook.add_worksheet(f"Zone_{i+1}")
             ws[i].write(0, 0, "Incoming time"); ws[i].write(0, 1, "Origin"); ws[i].write(0, 2, "Destination")
-            ws[i].write(0, 3, "Direction"); ws[i].write(0, 4, "ni0i0"); ws[i].write(0, 5, "sum_ni0j0")
+            ws[i].write(0, 3, "Direction"); 
+            for j in range(self.zone_number):
+                ws[i].write(0, 4+j, f"n{i+1}0{j+1}0")
         row = [1 for i in range(self.zone_number)]
         for i in self.unserved_record:
-            zone_id = i[1]
+            zone_id = i[1]-1
             ws[zone_id].write(row[zone_id], 0, i[0]); ws[zone_id].write(row[zone_id], 1, i[1]); ws[zone_id].write(row[zone_id], 2, i[2])
-            ws[zone_id].write(row[zone_id], 3, i[3]); ws[zone_id].write(row[zone_id], 4, i[4]); ws[zone_id].write(row[zone_id], 5, i[5])
+            ws[zone_id].write(row[zone_id], 3, i[3]); 
+            for j in range(self.zone_number):
+                ws[zone_id].write(row[zone_id], 4+j, i[4+j]); 
             row[zone_id] += 1
         ws2 = workbook.add_worksheet("unserved number")
         ws2.write(0, 0, "unserved number in each zone")
@@ -389,6 +421,31 @@ class Simulation:
                 ws.write(row+1, col*3+1, avg_dist[j][i])
                 ws.write(row+1, col*3+2, total_num[j][i])
         wb.close()
+
+    def export_rebalance_m_tp(self):
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        path = f"{dir_path}\{self.folder_name}\matrix_tp" if self.folder_name != None else f"{dir_path}\matrix_tp"
+        path_exist = os.path.exists(f"{path}")
+        if not path_exist:
+            os.makedirs(f"{path}")
+        wb = xw.Workbook(f"{path}\{self.fleet_m}_matrix_tp.xlsx")
+        ws1 = wb.add_worksheet("summary")
+        ws1.write(0, 0, f"rebalance number"); ws1.write(0, 1, int((self.T/self.rebalance_t_tp)))
+        ws1.write(1, 0, f"rebalance headway"); ws1.write(1, 1, self.rebalance_t_tp)
+        ws1.write(2, 0, f"rebalance flow")
+        sum_m = np.zeros((self.zone_number, self.zone_number))
+        for i in self.rebalance_m_tp: sum_m = np.add(sum_m, i)
+        for i in range(self.zone_number):
+            for j in range(self.zone_number):
+                ws1.write(i+3, j, sum_m[i][j]/self.T)
+        ws2 = wb.add_worksheet("zone supply demand")
+        for i in range(self.zone_number):
+            ws2.write(0, i, f"Zone{i+1}")
+        for j in range(len(self.b)):
+            for i in range(self.zone_number):
+                ws2.write(j+1, i, self.b[j][i])
+        wb.close()
+        return 
 
     def temp_i0ij(self):
         o_xs, o_ys = [], []

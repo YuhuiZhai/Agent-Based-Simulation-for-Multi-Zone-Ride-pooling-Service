@@ -9,14 +9,17 @@ class Unit:
         self.idle_position = None
         self.status = init_status
         self.prev_status = None
-        # the direction by impulsion model
-        self.dir = None
-    
+        # every taxi's status is restricted to change at most once at a time
+        self.status_transition_count = 0
+
     # change self status to new status, and also return message to upper level
     def changeStatusTo(self, new_status):
+        if self.status_transition_count > 1:
+            print("Error in transfer")
+            return 
         old_status = self.status
         self.status = new_status
-        self.status_change = 0
+        self.status_transition_count = 0
         return (self.id, old_status, new_status)
         
     # check the sign
@@ -27,20 +30,16 @@ class Unit:
     # move from origin (x, y) to destination (x, y) using Manhattan space
     def move_Manhattan(self, dt:float, dxy:tuple, xfirst=True, r=False):
         dx, dy = dxy[0], dxy[1]
-        # follow the direction by impulsion model if there is one
-        if self.dir != None:
-            xmove, ymove = self.dir   
-        else:
-            xmove = xfirst
-            if r:
-                xmove = random.randint(0, 1)    
-            ymove = 1 - xmove
-            if (self.x == dx and self.y == dy):
-                xmove, ymove = 0, 0
-            elif (self.y == dy):
-                xmove, ymove = 1, 0
-            elif (self.x == dx):
-                xmove, ymove = 0, 1
+        xmove = xfirst
+        if r:
+            xmove = random.randint(0, 1)    
+        ymove = 1 - xmove
+        if (self.x == dx and self.y == dy):
+            xmove, ymove = 0, 0
+        elif (self.y == dy):
+            xmove, ymove = 1, 0
+        elif (self.x == dx):
+            xmove, ymove = 0, 1
         xdir = self.sign(dx-self.x)
         ydir = self.sign(dy-self.y)
         self.x += xdir * xmove* dt * self.speed
@@ -60,4 +59,6 @@ class Unit:
         elif yout: out_dir = 1
         return xout or yout, out_dir
     
+    def valid_trans(self):
+        return self.status_transition_count == 0
     

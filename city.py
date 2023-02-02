@@ -93,6 +93,15 @@ class City:
 
     def omega(self, i, j):
         return self.omega_sets[(i, j)]
+        
+    # function to get the zone level distance between two zones
+    def dist_btw(self, id1, id2):
+        zone1 = self.getZone(id1)
+        zone2 = self.getZone(id2)
+        x1, y1 = zone1.center
+        x2, y2 = zone2.center
+        return abs(x1-x2) + abs(y1-y2)
+
 
     # function to split the city into n x n zones
     # If city was splitted before, this function will replace the city by a new one. 
@@ -261,3 +270,27 @@ class City:
             zone = self.zones[zone_id]
             zone.sketch()
         return 
+
+    def convert_prob_matrix(self):
+        def dir(i, j):
+            temp = {}
+            ci, cj = self.getZone(i), self.getZone(j)
+            x1, y1 = ci.center
+            x2, y2 = cj.center
+            dir1, dir2 = x2-x1, y2-y1 
+            temp = {(self.l, 0):1, (-self.l, 0):2, (0, self.l):0, (0, -self.l):3}
+            if (dir1, dir2) in temp: 
+                return temp[(dir1, dir2)]
+            return -1
+        N = self.n**2
+        temp = [[[0 for k in range(N)] for j in range(N)] for i in range(N)]
+        for i in range(N):
+            for j in range(N):
+                for k in range(N):
+                    if dir(i, k) == -1:
+                        continue
+                    temp[i][j][dir(i, k)] = self.prob_matrix[(i, j, k)]
+        self.prob_matrix = temp
+        return
+
+    

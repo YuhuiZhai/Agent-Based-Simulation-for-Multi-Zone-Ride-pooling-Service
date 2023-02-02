@@ -3,13 +3,15 @@ from city import City
 from taxi import Taxi
 from passenger import Passenger
 import numpy as np
-import math
-
+import pyomo
+import pyomo.opt
+import pyomo.environ as pe
 class Taxifleet(Fleet):
-    def __init__(self, fleet_m, id, city:City, dt, T, rebalance_m=None):
+    def __init__(self, fleet_m, id, city:City, dt, T, rebalance_m=None, turning_random=True):
         super().__init__(id)    
-        self.fleet_m, self.city, self.dt, self.T, self.rebalance_m  = fleet_m, city, dt, T, rebalance_m
+        self.fleet_m, self.city, self.dt, self.T, self.rebalance_m, self.turning_random  = fleet_m, city, dt, T, rebalance_m, turning_random
         self.rng = np.random.default_rng(seed=np.random.randint(100))
+        self.assigned_num_tp = [0, 0, 0, 0]
         self.init_taxi()
         self.init_rebalance()
     
@@ -28,7 +30,7 @@ class Taxifleet(Fleet):
                 self.addVehGroup(idle_status)
                 self.zone_group[zone.id][(-1, -1, -1)] = set()
                 for k in range(fleet_size):
-                    veh = Taxi((zone.id, k), zone, self.city, idle_status)
+                    veh = Taxi((zone.id, k), zone, self.city, idle_status, turning_random=self.turning_random)
                     self.vehicles[veh.id] = veh 
                     self.vehs_group[idle_status].add(veh)
                     self.zone_group[zone.id][(-1, -1, -1)].add(veh)
@@ -67,6 +69,7 @@ class Taxifleet(Fleet):
             self.changeVehStatus(status_request)
             self.changeZoneStatus(status_request)
         self.clock += dt
+        self.assigned_num_tp = [0, 0, 0, 0]
         return 
     
     # change veh's status from status1 to status2 
@@ -114,6 +117,105 @@ class Taxifleet(Fleet):
             t, i, j = self.rebalance_info[self.rebalance_idx]
         return  
     
+    def extra_rebalance(self, bound_m):
+        for i in range(self.city.n**2):
+            rebalance_num = 0
+            for j in range(self.city.n**2):
+                if j == i: continue
+                if (i, -1, -1) in self.zone_group[j]:
+                    rebalance_num += len(self.zone_group[j][(i, -1, -1)])
+            for j in range(self.city.n**2):
+                if i == j: continue
+                idle_num = len(self.zone_group[i][(-1, -1, -1)])
+                if idle_num + rebalance_num <= bound_m[i][0]:
+                    idle_taxis_j = self.zone_group[j][(-1, -1, -1)]
+                    if len(idle_taxis_j) >= bound_m[j][0]:
+                        for veh in idle_taxis_j:
+                            if not veh.valid_trans():
+                                continue
+                            status_request = veh.rebalance(self.city.getZone(i))
+                            self.changeVehStatus(status_request)
+                            self.changeZoneStatus(status_request)
+                            break
+        return 
+
+    def rebalance_tp(self):
+        def get_ni000(i):
+            idle_num = len(self.zone_group[i][(-1, -1, -1)])
+            rebalance_num = 0
+            for i in range(self.city.n**2):
+                for j in range(self.city.n**2):
+                    if i == j: continue
+                    if (i, -1, -1) in self.zone_group[j]: rebalance_num += len(self.zone_group[j][(i, -1, -1)])
+            assigned_num_tp = self.assigned_num_tp[i]
+            return idle_num - assigned_num_tp
+        all_pos, all_neg = True, True
+        b = [0 for i in range(self.city.n**2)]
+        sum_supply, sum_demand = 0, 0
+        for i in range(self.city.n**2):
+            ni000 = get_ni000(i)
+            pos, neg = ni000 > 0, ni000 < 0
+            all_pos = all_pos and pos
+            all_neg = all_neg and neg
+            if pos: sum_supply += ni000
+            if neg: sum_demand += ni000
+            b[i] = ni000
+        if all_pos or all_neg: return np.zeros((self.city.n**2, self.city.n**2)), b
+        sd = b
+        A = min(sum_supply, abs(sum_demand))
+        for i in range(len(b)): 
+            if b[i] > 0: b[i] = b[i] * min(A / sum_supply, 1)
+            if b[i] < 0: b[i] = b[i] * min(abs(A / sum_demand), 1)
+        rebalance_m = self.rebalance_tp_helper(b)
+        for i in range(self.city.n**2):
+            for j in range(self.city.n**2):
+                if i == j: continue
+                num = 0
+                while num < rebalance_m[i][j]:
+                    taxi = None
+                    for idle_taxi in self.zone_group[i][(-1, -1, -1)]:
+                        if not idle_taxi.valid_trans(): continue
+                        num += 1
+                        taxi = idle_taxi
+                        scan_all = False
+                        break
+                    if taxi == None: break
+                    status_request = taxi.rebalance(self.city.getZone(j))
+                    self.changeVehStatus(status_request)
+                    self.changeZoneStatus(status_request) 
+        return np.array(rebalance_m), sd
+
+    def rebalance_tp_helper(self, b):
+        # Build a model
+        m = pe.ConcreteModel()
+
+        # Declare the decision variable -- how many vehicles to be rebalanced between zone i to zone j, self.all_zone is a list of zone index, e.g., [0, 1, 2, 3]
+        self.all_zone = [i for i in range(self.city.n**2)]
+        m.x = pe.Var(self.all_zone, self.all_zone, domain = pe.NonNegativeReals)
+
+        # Declare the objective function -- self.Dist[i,j]*self.phi is the distance between zone i's center and zone j's center, self.v is the speed
+        Dist = [[10000 for i in range(self.city.n**2)] for j in range(self.city.n**2)] 
+        for i in range(self.city.n**2):
+            for j in range(self.city.n**2):
+                if i == j: continue
+                Dist[i][j] = self.city.dist_btw(i, j)
+
+        m.Cost = pe.Objective(expr = sum([Dist[i][j]/self.city.max_v*m.x[i,j] for i in self.all_zone for j in self.all_zone]), sense = pe.minimize)
+
+        # Declare the constraints -- the number of vehicles out of a zone minue the number of vehicles into a zone should be equal to the number of vehicles to be rebalanced out of zone i (represented by self.b[i])
+        m.constraints = pe.ConstraintList()
+        for i in self.all_zone:
+            m.constraints.add(sum([m.x[i,j] for j in self.all_zone]) - sum([m.x[j,i] for j in self.all_zone]) == b[i])
+
+        # Solve the problem
+        pe.SolverFactory('glpk').solve(m)
+
+        # Get the value of decision variable x_ij
+        rebalance_m = [[0 for j in range(self.city.n**2)] for i in range(self.city.n**2)]
+        for i, j in m.x:
+            rebalance_m[i][j] = int(m.x[i, j].value)
+        return rebalance_m
+
     def computeP(self):
         P = 0
         for i in range(self.city.n**2):
@@ -151,6 +253,7 @@ class Taxifleet(Fleet):
     def serve(self, passenger:Passenger):
         c_oxy, c_dxy = passenger.location()
         o_id, d_id = passenger.odzone()
+        self.assigned_num_tp[o_id] += 1
         opt_veh, opt_dist = None, None
         # intrazonal caller
         if o_id == d_id:
@@ -163,6 +266,8 @@ class Taxifleet(Fleet):
                 # idle veh 
                 if s1 == -1 and s2 == -1 and s3 == -1:
                     for idle_veh in self.zone_group[o_id][status]:
+                        if not idle_veh.valid_trans():
+                            continue
                         dist = self.dist(idle_veh, passenger, 1)
                         if dist < dist0:
                             opt_veh0, dist0 = idle_veh, dist
@@ -172,9 +277,12 @@ class Taxifleet(Fleet):
                         p2 = veh.taxi_status[2][1]
                         pdx, pdy = p2.location()[1]
                         # feasible zone of Case 1 intra intra (p v)
+                        if not veh.valid_trans():
+                            continue 
                         if (o_id == s2):
                             if ((xlim1[0] <= pdx and pdx <= xlim1[1] and ylim1[0] <= pdy and pdy <= ylim1[1]) or\
-                                (xlim2[0] <= pdx and pdx <= xlim2[1] and ylim2[0] <= pdy and pdy <= ylim2[1])):  
+                                (xlim2[0] <= pdx and pdx <= xlim2[1] and ylim2[0] <= pdy and pdy <= ylim2[1])): 
+                                
                                 dist = self.dist(veh, passenger, 1)
                                 if dist < dist1:
                                     opt_veh1, dist1 = veh, dist
@@ -196,14 +304,18 @@ class Taxifleet(Fleet):
                 # idle veh 
                 if s1 == -1 and s2 == -1 and s3 == -1:
                     for idle_veh in self.zone_group[o_id][status]:
+                        if not idle_veh.valid_trans():
+                            continue 
                         dist = self.dist(idle_veh, passenger, 1)
                         if dist < dist0:
                             opt_veh0, dist0 = idle_veh, dist
 
                 elif s1 == -1 and s2 != -1 and s2 != o_id and s3 == -1:
                     for veh in self.zone_group[o_id][status]:
-                    # feasible zone of Case 2 inter inter (p v)
-                        if o_id != s2 and s2 in fz:  
+                        if not veh.valid_trans():
+                            continue 
+                        # feasible zone of Case 2 inter inter (p v)
+                        if s2 in fz:  
                             dist = self.dist(veh, passenger, 1)
                             if dist < dist2:
                                 opt_veh2, dist2 = veh, dist
@@ -211,6 +323,8 @@ class Taxifleet(Fleet):
                 elif s1 == -1 and s2 == o_id and s3 == -1:
                     # iterate over vehicle in current zone
                     for veh in self.zone_group[o_id][status]:
+                        if not veh.valid_trans():
+                            continue 
                         # get the on board passenger 
                         p2 = veh.taxi_status[2][1]
                         # get the destination of on board passenger
@@ -223,7 +337,6 @@ class Taxifleet(Fleet):
                             if dist < dist4:
                                 opt_veh4, dist4 = veh, dist
             opt_veh, opt_dist = min([(opt_veh0, dist0), (opt_veh2, dist2), (opt_veh4, dist4)], key=lambda k : k[1])
-            
         if opt_veh == None:
             passenger.status = -1
             return opt_veh, opt_dist, None
@@ -251,7 +364,6 @@ class Taxifleet(Fleet):
         # rebalance status
         if s0 != s1 and p1 == None:
             return 3
-        
     # function to return location of each status group
     def sketch_helper(self):
         # key is status, value is location list
