@@ -34,11 +34,12 @@ class Simulation:
         # record of unserved information [info = [starting time, ozone, dzone, direction, ni0i0, sum_ni0j0]]
         self.unserved_record = []
 
-        # indicator of testing deliver distance
+        # indicator of testing deliver distance -> One turn if true
         self.test_deliver = test_deliver
         self.bound_m = None
         # dynamic rebalance matrix cumulation
         self.rebalance_m_tp = []
+        self.rebalance_m_bound = []
         self.b = []
         self.rebalance_t_tp = rebalance_t_tp
         
@@ -68,7 +69,9 @@ class Simulation:
                 p_id, p = self.events.head()
             if self.rebalance_t_tp == None:
                 self.fleet.rebalance()
-                self.fleet.extra_rebalance(self.bound_m)
+                # rebalance_m_bound = self.fleet.rebalance_by_bound(self.bound_m)
+                # self.rebalance_m_bound.append(rebalance_m_bound)
+
             elif idx % self.tp_N == 0:
                 fleet_m, b = self.fleet.rebalance_tp()
                 self.rebalance_m_tp.append(fleet_m)
@@ -279,6 +282,7 @@ class Simulation:
             worksheet1 = workbook.add_worksheet("status number")
         worksheet2 = workbook.add_worksheet("unserved number")
         row = 1
+        ni000 = [0 for i in range(self.zone_number)]
         for zone_id in self.status_number:
             for status in self.status_number[zone_id]:
                 l = len(self.status_number[zone_id][status])
@@ -286,6 +290,7 @@ class Simulation:
                 avg = sum(self.status_number[zone_id][status][int(1/3*l):]) / len(self.status_number[zone_id][status][int(1/3*l):]) 
                 if status == (-1, -1, -1):
                     worksheet0.write(row, 0, f"n_{zone_id+shift}{status[0]+shift}{status[1]+shift}{status[2]+shift}", cell_format)
+                    ni000[zone_id] = avg
                 else:
                     worksheet0.write(row, 0, f"n_{zone_id+shift}{status[0]+shift}{status[1]+shift}{status[2]+shift}")
                 worksheet0.write(row, 1, avg)
@@ -309,7 +314,7 @@ class Simulation:
                 zone_id = i*self.city.n + j
                 worksheet2.write(i+1, j, self.unserved_number[zone_id])   
         workbook.close()
-        return 
+        return ni000
 
     def export_passenger_time(self, full=False):
         dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -444,6 +449,23 @@ class Simulation:
         for j in range(len(self.b)):
             for i in range(self.zone_number):
                 ws2.write(j+1, i, self.b[j][i])
+        wb.close()
+        return 
+
+    def export_rebalance_m_bound(self):
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        path = f"{dir_path}\{self.folder_name}\matrix_bound" if self.folder_name != None else f"{dir_path}\matrix_bound"
+        path_exist = os.path.exists(f"{path}")
+        if not path_exist:
+            os.makedirs(f"{path}")
+        wb = xw.Workbook(f"{path}\{self.fleet_m}_matrix_bound.xlsx")
+        ws1 = wb.add_worksheet()
+        ws1.write(0, 0, "Rebalancing Rate")
+        sum_m = np.zeros((self.zone_number, self.zone_number))
+        for i in self.rebalance_m_bound: sum_m = np.add(sum_m, i)
+        for i in range(self.zone_number):
+            for j in range(self.zone_number):
+                ws1.write(i+1, j, sum_m[i][j]/self.T)
         wb.close()
         return 
 

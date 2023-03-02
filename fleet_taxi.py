@@ -69,7 +69,7 @@ class Taxifleet(Fleet):
             self.changeVehStatus(status_request)
             self.changeZoneStatus(status_request)
         self.clock += dt
-        self.assigned_num_tp = [0, 0, 0, 0]
+        self.assigned_num_tp = [0 for i in range(self.city.n**2)]
         return 
     
     # change veh's status from status1 to status2 
@@ -117,38 +117,49 @@ class Taxifleet(Fleet):
             t, i, j = self.rebalance_info[self.rebalance_idx]
         return  
     
-    def extra_rebalance(self, bound_m):
+    def rebalance_by_bound(self, bound_m):
         for i in range(self.city.n**2):
             rebalance_num = 0
             for j in range(self.city.n**2):
                 if j == i: continue
                 if (i, -1, -1) in self.zone_group[j]:
                     rebalance_num += len(self.zone_group[j][(i, -1, -1)])
+            rebalance_m_bound = [[0 for i in range(self.city.n**2)] for j in range(self.city.n**2)]
             for j in range(self.city.n**2):
                 if i == j: continue
                 idle_num = len(self.zone_group[i][(-1, -1, -1)])
-                if idle_num + rebalance_num <= bound_m[i][0]:
+                if idle_num <= bound_m[i][0]:
                     idle_taxis_j = self.zone_group[j][(-1, -1, -1)]
-                    if len(idle_taxis_j) >= bound_m[j][0]:
+                    if len(idle_taxis_j) >= bound_m[j][1]:
                         for veh in idle_taxis_j:
                             if not veh.valid_trans():
                                 continue
+                            rebalance_m_bound[j][i] += 1
                             status_request = veh.rebalance(self.city.getZone(i))
                             self.changeVehStatus(status_request)
                             self.changeZoneStatus(status_request)
                             break
-        return 
+        return np.array(rebalance_m_bound)
 
     def rebalance_tp(self):
         def get_ni000(i):
+            # idle vehicle number
             idle_num = len(self.zone_group[i][(-1, -1, -1)])
-            rebalance_num = 0
+            rebalance_out, rebalance_in = 0, 0
+            # rebalance number from zone j to zone i 
             for i in range(self.city.n**2):
                 for j in range(self.city.n**2):
                     if i == j: continue
-                    if (i, -1, -1) in self.zone_group[j]: rebalance_num += len(self.zone_group[j][(i, -1, -1)])
+                    if (i, -1, -1) in self.zone_group[j]: 
+                        rebalance_in += len(self.zone_group[j][(i, -1, -1)])
+                    if (j, -1, -1) in self.zone_group[i]: 
+                        rebalance_out += len(self.zone_group[i][(j, -1, -1)])
+            # assigned passenger number in current cycle
             assigned_num_tp = self.assigned_num_tp[i]
-            return idle_num - assigned_num_tp
+            b = idle_num + rebalance_in - rebalance_out - assigned_num_tp
+            if abs(b) < 10:
+                return 0
+            return b
         all_pos, all_neg = True, True
         b = [0 for i in range(self.city.n**2)]
         sum_supply, sum_demand = 0, 0
