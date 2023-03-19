@@ -1,7 +1,7 @@
 # Agent-Based-Simulation-for-Multi-Zone-Ride-pooling-Service
 
 
-## How to run the simulation. 
+## Under Construction. 
 
 1. To run the simulation, go to main.py. The first step is to load the data and create a City object. There are three types of city: `Euclidean`, `Manhattan`, and `real-world`. 
 
